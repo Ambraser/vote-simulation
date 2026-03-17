@@ -14,6 +14,7 @@ from whalrus import (
     RuleCoombs,
     RuleCopeland,
     RuleIRV,
+    RuleKApproval,
     RuleMajorityJudgment,
     RuleMaximin,
     RuleNanson,
@@ -22,7 +23,6 @@ from whalrus import (
     RuleSchulze,
     RuleSimplifiedDodgson,
     RuleTwoRound,
-    RuleKApproval,
 )
 
 RuleBuilder = Callable[[list, set[str]], object]
@@ -67,7 +67,7 @@ register_rule("PLU1", _build_plurality_1)  # Alias for PLU
 
 def _build_two_rounds(ballots: list, candidates: set[str]) -> object:
     """Two rounds rule : code PLU2"""
-    return RuleTwoRound(ballots, candidates=candidates)
+    return RuleTwoRound(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
 
 
 register_rule("PLU2", _build_two_rounds)  # Alias for PLU
@@ -75,7 +75,7 @@ register_rule("PLU2", _build_two_rounds)  # Alias for PLU
 
 def _build_black(ballots: list, candidates: set[str]) -> object:
     """Black rule : code BLAC"""
-    return RuleBlack(ballots, candidates=candidates)
+    return RuleBlack(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
 
 
 register_rule("BLAC", _build_black)  # Alias for BLAC
@@ -83,7 +83,7 @@ register_rule("BLAC", _build_black)  # Alias for BLAC
 
 def _build_borda(ballots: list, candidates: set[str]) -> object:
     """Borda rule : code BORD"""
-    return RuleBorda(ballots, candidates=candidates)
+    return RuleBorda(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
 
 
 register_rule("BORD", _build_borda)
@@ -91,7 +91,7 @@ register_rule("BORD", _build_borda)
 
 def _build_condorcet(ballots: list, candidates: set[str]) -> object:
     """Condorcet rule : code COND"""
-    return RuleCondorcet(ballots, candidates=candidates)
+    return RuleCondorcet(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
 
 
 register_rule("COND", _build_condorcet)
@@ -99,7 +99,7 @@ register_rule("COND", _build_condorcet)
 
 def _build_coombs(ballots: list, candidates: set[str]) -> object:
     """Coombs rule : code COOM"""
-    return RuleCoombs(ballots, candidates=candidates)
+    return RuleCoombs(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
 
 
 register_rule("COOM", _build_coombs)
@@ -115,7 +115,7 @@ register_rule("L4VD", _build_l4vd)  # TODO: implement L4VD rule
 
 def _build_rv(ballots: list, candidates: set[str]) -> object:
     """Range voting rule : code RV"""
-    return RuleRangeVoting(ballots, candidates=candidates)
+    return RuleRangeVoting(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
 
 
 register_rule("RV", _build_rv)
@@ -123,7 +123,7 @@ register_rule("RV", _build_rv)
 
 def _build_copeland(ballots: list, candidates: set[str]) -> object:
     """Copeland rule : code COPE"""
-    return RuleCopeland(ballots, candidates=candidates)
+    return RuleCopeland(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
 
 
 register_rule("COPE", _build_copeland)  # Alias for COPE
@@ -131,7 +131,7 @@ register_rule("COPE", _build_copeland)  # Alias for COPE
 
 def _build_majority_judgment(ballots: list, candidates: set[str]) -> object:
     """Majority judgment rule : code MJ"""
-    return RuleMajorityJudgment(ballots, candidates=candidates)
+    return RuleMajorityJudgment(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
 
 
 register_rule("MJ", _build_majority_judgment)
@@ -139,7 +139,7 @@ register_rule("MJ", _build_majority_judgment)
 
 def _build_bucklin_rounds(ballots: list, candidates: set[str]) -> object:
     """Bucklin by rounds rule : code BUCK_R"""
-    return RuleBucklinByRounds(ballots, candidates=candidates)
+    return RuleBucklinByRounds(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
 
 
 register_rule("BUCK_R", _build_bucklin_rounds)
@@ -163,7 +163,7 @@ register_rule("DODG", _build_dodgson)  # TODO: implement DODGSON rule
 
 def _build_simplified_dodgson(ballots: list, candidates: set[str]) -> object:
     """Simplified Dodgson rule : code DODG_S"""
-    return RuleSimplifiedDodgson(ballots, candidates=candidates)
+    return RuleSimplifiedDodgson(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
 
 
 register_rule("DODG_S", _build_simplified_dodgson)  # Alias for DODG_S
@@ -171,7 +171,7 @@ register_rule("DODG_S", _build_simplified_dodgson)  # Alias for DODG_S
 
 def _build_nanson(ballots: list, candidates: set[str]) -> object:
     """Nanson rule : code NANS"""
-    return RuleNanson(ballots, candidates=candidates)
+    return RuleNanson(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
 
 
 register_rule("NANS", _build_nanson)
@@ -180,7 +180,7 @@ register_rule("NANS", _build_nanson)
 # APPROVAL is not properly defined yet
 def _build_approval(ballots: list, candidates: set[str]) -> object:
     """Approval rule : code AP"""
-    return RuleApproval(ballots, candidates=candidates)
+    return RuleApproval(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
 
 
 register_rule("AP", _build_approval)
@@ -188,7 +188,7 @@ register_rule("AP", _build_approval)
 
 def _build_baldwin(ballots: list, candidates: set[str]) -> object:
     """Baldwin rule :"""
-    return RuleBaldwin(ballots, candidates=candidates)
+    return RuleBaldwin(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
 
 
 register_rule("BALD", _build_baldwin)
@@ -196,7 +196,7 @@ register_rule("BALD", _build_baldwin)
 
 def _build_bucklin_instant(ballots: list, candidates: set[str]) -> object:
     """Bucklin instant rule : code BUCK_I"""
-    return RuleBucklinInstant(ballots, candidates=candidates)
+    return RuleBucklinInstant(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
 
 
 register_rule("BUCK_I", _build_bucklin_instant)
@@ -204,7 +204,7 @@ register_rule("BUCK_I", _build_bucklin_instant)
 
 def _build_irv(ballots: list, candidates: set[str]) -> object:
     """Instant-runoff voting or HARE rule : code HARE"""
-    return RuleIRV(ballots, candidates=candidates)
+    return RuleIRV(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
 
 
 register_rule("HARE", _build_irv)
@@ -213,25 +213,27 @@ register_rule("HARE", _build_irv)
 def _build_minimax(ballots: list, candidates: set[str]) -> object:
     """Minimax rule : code MMAX"""
     return RuleMaximin(
-        ballots, candidates=candidates
+        ballots, candidates=candidates, tie_break=Priority.ASCENDING
     )  # TODO : check if minimax and maximin are the same rule or if we need to implement a specific minimax rule
+
 
 register_rule("MMAX", _build_minimax)
 
 
 def _build_schulze(ballots: list, candidates: set[str]) -> object:
     """Schulze rule"""
-    return RuleSchulze(ballots, candidates=candidates)
+    return RuleSchulze(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
 
 
-register_rule("SCHU", _build_schulze)  
+register_rule("SCHU", _build_schulze)
 
 
 def _build_k_approval(ballots: list, candidates: set[str]) -> object:
-    """ K-approval rule : code AP_K"""
-    return RuleKApproval(ballots, candidates=candidates, k=2)  # Example with k=2
+    """K-approval rule : code AP_K"""
+    return RuleKApproval(ballots, candidates=candidates, k=2, tie_break=Priority.ASCENDING)  # Example with k=2
 
-register_rule("AP_K", _build_k_approval) 
+
+register_rule("AP_K", _build_k_approval)
 
 """ TO CHECK LATER ON """
 '''
