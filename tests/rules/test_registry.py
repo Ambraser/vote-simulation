@@ -22,6 +22,10 @@ def test_register_rule():
         try:
             rule_builder = get_rule_builder(rule_name)
             rule_instance = rule_builder(dummy_ballots, dummy_candidates)
-            assert rule_instance is NotImplementedError or hasattr(rule_instance, "winner_")
+            assert (
+                rule_instance is NotImplementedError
+                or hasattr(rule_instance, "w_")
+                or hasattr(rule_instance, "winner_")
+            )
         except Exception as e:
             print(f"Error building rule '{rule_name}': {e}")

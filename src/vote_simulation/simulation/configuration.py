@@ -11,24 +11,22 @@ from pathlib import Path
 class SimulationConfig:
     """Validated simulation configuration."""
 
-    data_file: str
     rule_codes: list[str]
-    # TODO : add every parameters
+    data_path: str | None = None  # optional, if not provided, data will be generated
+    candidates: list[int] | None = None
+    voters: list[int] | None = None
+    iterations: int = 1
+    seed: int = 0
+    input_folder_path: str | None = None  # optional, for batch simulation on multiple files
+
+    # TODO : add every parametes
 
 
 DEFAULT_CONFIG_PATH = Path("config/simulation.toml")
 
 
 def load_simulation_config(config_path: str | Path) -> SimulationConfig:
-    """Load and validate a simulation config file.
-
-    Expected structure:
-
-    [simulation]
-    data_file = "..."
-    rule_codes = ["PLU1", "BORD"]
-    """
-
+    """Load and validate a simulation config file."""
     path = Path(config_path)
     # Check path
     if not path.is_file():
@@ -42,9 +40,9 @@ def load_simulation_config(config_path: str | Path) -> SimulationConfig:
     if not isinstance(simulation, dict):
         raise ValueError("Invalid configuration: missing [simulation] section")
 
-    data_file = simulation.get("data_file")
-    if not isinstance(data_file, str) or not data_file.strip():
-        raise ValueError("Invalid configuration: simulation.data_file must be a non-empty string")
+    # data_file = simulation.get("data_file")
+    # if not isinstance(data_file, str) or not data_file.strip():
+    #    raise ValueError("Invalid configuration: simulation.data_file must be a non-empty string")
 
     rule_codes = simulation.get("rule_codes")
     if not isinstance(rule_codes, list) or not rule_codes:
@@ -54,8 +52,54 @@ def load_simulation_config(config_path: str | Path) -> SimulationConfig:
     if not normalized_rule_codes:
         raise ValueError("Invalid configuration: simulation.rule_codes cannot be empty")
 
-    data_path = Path(data_file)
-    if not data_path.is_absolute():
-        data_path = (path.parent / data_path).resolve()
+    candidates = simulation.get("candidates")
+    if candidates is not None:
+        if not isinstance(candidates, list) or not candidates:
+            raise ValueError("Invalid configuration: simulation.candidates must be a non-empty list")
+        if not all(isinstance(c, int) and c > 0 for c in candidates):
+            raise ValueError("Invalid configuration: all simulation.candidates must be positive integers")
 
-    return SimulationConfig(data_file=str(data_path), rule_codes=normalized_rule_codes)
+    voters = simulation.get("voters")
+    if voters is not None:
+        if not isinstance(voters, list) or not voters:
+            raise ValueError("Invalid configuration: simulation.voters must be a non-empty list")
+        if not all(isinstance(v, int) and v > 0 for v in voters):
+            raise ValueError("Invalid configuration: all simulation.voters must be positive integers")
+
+    iterations = simulation.get("iterations", 1)
+    if not isinstance(iterations, int) or iterations <= 0:
+        raise ValueError("Invalid configuration: simulation.iterations must be a positive integer")
+
+    seed = simulation.get("seed", 0)
+    if not isinstance(seed, int) or seed < 0:
+        raise ValueError("Invalid configuration: simulation.seed must be a non-negative integer")
+
+    data_path = simulation.get("data_path", simulation.get("data_file"))
+    if data_path is not None and (not isinstance(data_path, str) or not data_path.strip()):
+        raise ValueError("Invalid configuration: simulation.data_path must be a non-empty string if provided")
+    if isinstance(data_path, str):
+        data_path = (
+            str((path.parent / data_path).resolve())
+            if not Path(data_path).is_absolute()
+            else str(Path(data_path).resolve())
+        )
+
+    input_folder_path = simulation.get("input_folder_path")
+    if input_folder_path is not None and (not isinstance(input_folder_path, str) or not input_folder_path.strip()):
+        raise ValueError("Invalid configuration: simulation.input_folder_path must be a non-empty string if provided")
+    if isinstance(input_folder_path, str):
+        input_folder_path = (
+            str((path.parent / input_folder_path).resolve())
+            if not Path(input_folder_path).is_absolute()
+            else str(Path(input_folder_path).resolve())
+        )
+
+    return SimulationConfig(
+        data_path=data_path,
+        rule_codes=normalized_rule_codes,
+        candidates=candidates,
+        voters=voters,
+        iterations=iterations,
+        seed=seed,
+        input_folder_path=input_folder_path,
+    )

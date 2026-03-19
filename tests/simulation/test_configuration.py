@@ -17,16 +17,16 @@ def test_load_simulation_config_resolves_relative_data_path(tmp_path: Path):
     config_file = config_dir / "simulation.toml"
     config_file.write_text(
         """
-[simulation]
-data_file = "../dataset.csv"
-rule_codes = ["plu1", " bord "]
-""".strip(),
+        [simulation]
+        data_file = "../dataset.csv"
+        rule_codes = ["plu1", " bord "]
+        """.strip(),
         encoding="utf-8",
     )
 
     config = load_simulation_config(config_file)
 
-    assert config.data_file == str(data_file.resolve())
+    assert config.data_path == str(data_file.resolve())
     assert config.rule_codes == ["PLU1", "BORD"]
 
 

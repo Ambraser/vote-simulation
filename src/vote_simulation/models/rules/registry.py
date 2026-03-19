@@ -1,19 +1,22 @@
-"""Rule index for mapping short codes to whalrus rule factories."""
+"""Rule index for mapping short codes to `svvamp` rule factories."""
 
-from collections.abc import Callable
+from __future__ import annotations
 
-from whalrus import (
-    Priority,
+from collections.abc import Callable, Mapping, Sequence
+
+import numpy as np
+from svvamp import (
+    Profile,
     RuleApproval,
     RuleBaldwin,
     RuleBlack,
     RuleBorda,
-    RuleBucklinByRounds,
-    RuleBucklinInstant,
-    RuleCondorcet,
+    RuleBucklin,
     RuleCoombs,
     RuleCopeland,
+    RuleDodgson,
     RuleIRV,
+    RuleIteratedBucklin,
     RuleKApproval,
     RuleMajorityJudgment,
     RuleMaximin,
@@ -21,15 +24,47 @@ from whalrus import (
     RulePlurality,
     RuleRangeVoting,
     RuleSchulze,
-    RuleSimplifiedDodgson,
     RuleTwoRound,
 )
 
-from vote_simulation.models.rules.rule_star import RuleStar
-
-RuleBuilder = Callable[[list, set[str]], object]
+RuleInput = Profile | Sequence[Mapping[str, float]]
+RuleBuilder = Callable[[RuleInput, set[str] | None], object]
 # Index
 _RULE_BUILDERS: dict[str, RuleBuilder] = {}
+
+
+def _infer_labels(ballots: Sequence[Mapping[str, float]], candidates: set[str] | None) -> list[str]:
+    if ballots:
+        first_ballot = ballots[0]
+        if first_ballot:
+            return [str(label) for label in first_ballot.keys()]
+    if candidates:
+        return sorted(str(candidate) for candidate in candidates)
+    raise ValueError("Unable to infer candidate labels from empty ballots.")
+
+
+def _ensure_profile(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> Profile:
+    if isinstance(profile_or_ballots, Profile):
+        return profile_or_ballots
+
+    labels = _infer_labels(profile_or_ballots, candidates)
+    matrix = np.asarray(
+        [[float(ballot[label]) for label in labels] for ballot in profile_or_ballots],
+        dtype=np.float64,
+    )
+    return Profile(preferences_ut=matrix, labels_candidates=labels)
+
+
+def _grade_bounds(profile: Profile) -> tuple[float, float]:
+    return float(np.min(profile.preferences_ut)), float(np.max(profile.preferences_ut))
+
+
+def _build_with_rule(rule_factory: Callable[[Profile], object]) -> RuleBuilder:
+    def builder(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> object:
+        profile = _ensure_profile(profile_or_ballots, candidates)
+        return rule_factory(profile)
+
+    return builder
 
 
 def register_rule(code: str, builder: RuleBuilder) -> None:
@@ -58,56 +93,25 @@ def get_rule_builder(code: str) -> RuleBuilder:
         raise ValueError(f"Unknown rule code: '{code}'. Available codes: {available}") from error
 
 
-# ALREADY EXISTING IN WHALRUS
-def _build_plurality_1(ballots: list, candidates: set[str]) -> object:
-    """Plurality rule : code PLU1"""
-    return RulePlurality(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
+register_rule("PLU1", _build_with_rule(lambda profile: RulePlurality()(profile)))
 
 
-register_rule("PLU1", _build_plurality_1)  # Alias for PLU
+register_rule("PLU2", _build_with_rule(lambda profile: RuleTwoRound()(profile)))
 
 
-def _build_two_rounds(ballots: list, candidates: set[str]) -> object:
-    """Two rounds rule : code PLU2"""
-    return RuleTwoRound(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
+register_rule("BLAC", _build_with_rule(lambda profile: RuleBlack()(profile)))
 
 
-register_rule("PLU2", _build_two_rounds)  # Alias for PLU
+register_rule("BORD", _build_with_rule(lambda profile: RuleBorda()(profile)))
 
 
-def _build_black(ballots: list, candidates: set[str]) -> object:
-    """Black rule : code BLAC"""
-    return RuleBlack(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
+# register_rule("COND", _build_with_rule(lambda profile: RuleCondorcet()(profile)))
 
 
-register_rule("BLAC", _build_black)  # Alias for BLAC
+register_rule("COOM", _build_with_rule(lambda profile: RuleCoombs()(profile)))
 
 
-def _build_borda(ballots: list, candidates: set[str]) -> object:
-    """Borda rule : code BORD"""
-    return RuleBorda(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
-
-
-register_rule("BORD", _build_borda)
-
-
-def _build_condorcet(ballots: list, candidates: set[str]) -> object:
-    """Condorcet rule : code COND"""
-    return RuleCondorcet(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
-
-
-register_rule("COND", _build_condorcet)
-
-
-def _build_coombs(ballots: list, candidates: set[str]) -> object:
-    """Coombs rule : code COOM"""
-    return RuleCoombs(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
-
-
-register_rule("COOM", _build_coombs)
-
-
-def _build_l4vd(ballots: list, candidates: set[str]) -> object:
+def _build_l4vd(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> object:
     """L4VD rule : code L4VD"""
     raise NotImplementedError("L4VD rule is not implemented yet")
 
@@ -115,138 +119,67 @@ def _build_l4vd(ballots: list, candidates: set[str]) -> object:
 register_rule("L4VD", _build_l4vd)  # TODO: implement L4VD rule
 
 
-def _build_rv(ballots: list, candidates: set[str]) -> object:
+def _build_rv(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> object:
     """Range voting rule : code RV"""
-    return RuleRangeVoting(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
+    profile = _ensure_profile(profile_or_ballots, candidates)
+    min_grade, max_grade = _grade_bounds(profile)
+    return RuleRangeVoting(min_grade=min_grade, max_grade=max_grade, rescale_grades=False)(profile)
 
 
 register_rule("RV", _build_rv)
 
 
-def _build_copeland(ballots: list, candidates: set[str]) -> object:
-    """Copeland rule : code COPE"""
-    return RuleCopeland(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
+register_rule("COPE", _build_with_rule(lambda profile: RuleCopeland()(profile)))
 
 
-register_rule("COPE", _build_copeland)  # Alias for COPE
-
-
-def _build_majority_judgment(ballots: list, candidates: set[str]) -> object:
+def _build_majority_judgment(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> object:
     """Majority judgment rule : code MJ"""
-    return RuleMajorityJudgment(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
+    profile = _ensure_profile(profile_or_ballots, candidates)
+    min_grade, max_grade = _grade_bounds(profile)
+    return RuleMajorityJudgment(min_grade=min_grade, max_grade=max_grade, rescale_grades=False)(profile)
 
 
 register_rule("MJ", _build_majority_judgment)
 
 
-def _build_bucklin_rounds(ballots: list, candidates: set[str]) -> object:
-    """Bucklin by rounds rule : code BUCK_R"""
-    return RuleBucklinByRounds(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
+register_rule("BUCK_R", _build_with_rule(lambda profile: RuleBucklin()(profile)))
 
 
-register_rule("BUCK_R", _build_bucklin_rounds)
+register_rule("DODG_S", _build_with_rule(lambda profile: RuleDodgson()(profile)))
 
 
-def _build_star(ballots: list, candidates: set[str]) -> object:
-    """STAR rule : code STAR"""
-    return RuleStar(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
+register_rule("NANS", _build_with_rule(lambda profile: RuleNanson()(profile)))
 
 
-register_rule("STAR", _build_star)
+register_rule("AP", _build_with_rule(lambda profile: RuleApproval()(profile)))
 
 
-def _build_dodgson(ballots: list, candidates: set[str]) -> object:
-    """Dodgson rule : code DODG"""
-    return NotImplementedError("DODGSON rule is not implemented yet")
+register_rule("BALD", _build_with_rule(lambda profile: RuleBaldwin()(profile)))
 
 
-register_rule("DODG", _build_dodgson)  # TODO: implement DODGSON rule
+register_rule("BUCK_I", _build_with_rule(lambda profile: RuleIteratedBucklin()(profile)))
 
 
-def _build_simplified_dodgson(ballots: list, candidates: set[str]) -> object:
-    """Simplified Dodgson rule : code DODG_S"""
-    return RuleSimplifiedDodgson(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
+register_rule("HARE", _build_with_rule(lambda profile: RuleIRV()(profile)))
 
 
-register_rule("DODG_S", _build_simplified_dodgson)  # Alias for DODG_S
+register_rule("MMAX", _build_with_rule(lambda profile: RuleMaximin()(profile)))
 
 
-def _build_nanson(ballots: list, candidates: set[str]) -> object:
-    """Nanson rule : code NANS"""
-    return RuleNanson(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
+register_rule("SCHU", _build_with_rule(lambda profile: RuleSchulze()(profile)))
 
 
-register_rule("NANS", _build_nanson)
+register_rule("AP_K", _build_with_rule(lambda profile: RuleKApproval(k=2)(profile)))
 
+# register_rule(
+#    "STAR", _build_with_rule(lambda profile: RuleSTAR(min_grade=0.0, max_grade=1.0, rescale_grades=False)(profile))
+# )
 
-# APPROVAL is not properly defined yet
-def _build_approval(ballots: list, candidates: set[str]) -> object:
-    """Approval rule : code AP"""
-    return RuleApproval(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
-
-
-register_rule("AP", _build_approval)
-
-
-def _build_baldwin(ballots: list, candidates: set[str]) -> object:
-    """Baldwin rule :"""
-    return RuleBaldwin(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
-
-
-register_rule("BALD", _build_baldwin)
-
-
-def _build_bucklin_instant(ballots: list, candidates: set[str]) -> object:
-    """Bucklin instant rule : code BUCK_I"""
-    return RuleBucklinInstant(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
-
-
-register_rule("BUCK_I", _build_bucklin_instant)
-
-
-def _build_irv(ballots: list, candidates: set[str]) -> object:
-    """Instant-runoff voting or HARE rule : code HARE"""
-    return RuleIRV(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
-
-
-register_rule("HARE", _build_irv)
-
-
-def _build_minimax(ballots: list, candidates: set[str]) -> object:
-    """Minimax rule : code MMAX"""
-    return RuleMaximin(
-        ballots, candidates=candidates, tie_break=Priority.ASCENDING
-    )  # TODO : check if minimax and maximin are the same rule or if we need to implement a specific minimax rule
-
-
-register_rule("MMAX", _build_minimax)
-
-
-def _build_schulze(ballots: list, candidates: set[str]) -> object:
-    """Schulze rule"""
-    return RuleSchulze(ballots, candidates=candidates, tie_break=Priority.ASCENDING)
-
-
-register_rule("SCHU", _build_schulze)
-
-
-def _build_k_approval(ballots: list, candidates: set[str]) -> object:
-    """K-approval rule : code AP_K"""
-    return RuleKApproval(ballots, candidates=candidates, k=2, tie_break=Priority.ASCENDING)  # Example with k=2
-
-
-register_rule("AP_K", _build_k_approval)
+register_rule("DODG_C", _build_with_rule(lambda profile: RuleDodgson()(profile)))
 
 
 """ TO CHECK LATER ON """
 '''
-def _build_iterated_elimination(ballots: list, candidates: set[str]) -> object:
-    """ Iterated elimination rule : code IE"""
-    return RuleIteratedElimination(ballots, candidates=candidates)
-
-
-
-
 
 def _build_kim_roush(ballots: list, candidates: set[str]) -> object:
     """ Kim-Roush rule"""
@@ -261,9 +194,6 @@ def _build_ranked_pairs(ballots: list, candidates: set[str]) -> object:
 def _build_score(ballots: list, candidates: set[str]) -> object:
     """ Score rule : code SCORE"""
     return RuleScore(ballots, candidates=candidates)
-
-register_rule("SCORE", _build_score)  # Alias for SCORE
-
 
 
 

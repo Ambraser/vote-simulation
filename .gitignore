@@ -7,7 +7,7 @@ __pycache__/
 *.so
 
 # Data / config files 
-config/
+CHANGELOG/
 data/
 
 # Distribution / packaging

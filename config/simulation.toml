@@ -1,0 +1,21 @@
+[simulation]
+input_folder_path = "/home/ambraser/Desktop/Stage/Code/R/data_simulation_2025/data_simu_UNI/"
+data_path = "/home/ambraser/Desktop/Stage/Code/R/data_simulation_2025/data_simu_UNI/"
+
+#Data generation model 
+generative_models = ["diversity", "uniform"]
+
+# Voting methods to execute
+rule_codes = ["PLU1", "PLU2", "BORD", "COND", "COPE", "DODG_S", "BALD", "BLAC", "BUCK_I", "BUCK_R", "COOM", "HARE", "L4VD", "MJ", "MMAX", "NANS", "RV", "SCHU"]
+
+# Numbers of candidates
+candidates = [3,4,5,6,7,9,14]
+
+# Numbers of voters
+voters = [9,15,21,51,101,1001]
+
+# Iterations numbers 
+iterations = 1000
+
+# seed 
+seed = 42

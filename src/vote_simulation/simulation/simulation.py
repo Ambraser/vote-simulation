@@ -2,9 +2,10 @@ import os
 from csv import reader
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import numpy as np
-from whalrus import BallotLevels, Rule, ScaleRange
+from svvamp import Profile
 
 from vote_simulation.models.rules import get_rule_builder
 from vote_simulation.models.simulation_result import SimulationStepResult
@@ -49,6 +50,7 @@ def get_parquet(file_path: str) -> tuple[np.ndarray, np.ndarray]:
     Args:
         file_path (str): The file path of the Parquet data.
     """
+    # TODO : implement parquet file support
     raise NotImplementedError("Parquet file support is not implemented yet.")
 
 
@@ -56,31 +58,49 @@ def get_data(file_path: str) -> tuple[np.ndarray, np.ndarray]:
     """Get the data from the file path.
 
     Args:
-        file_path (str): The file path of the CSV data.
+        file_path (str): The file path of the CSV or Parquet data.
 
     Returns:
         candidates (np.ndarray): 1-D array of candidate names.
         data (np.ndarray): 2-D array of shape (n_voters, n_candidates).
     """
+    if not os.path.isfile(file_path):
+        raise ValueError("Invalid file path. Please provide a valid file path.")
+
     if file_path.endswith(".csv"):
-        try:
-            return get_csv(file_path)
-        except Exception as e:
-            raise ValueError(f"Error reading CSV file: {e}") from e
+        return get_csv(file_path)
 
     if file_path.endswith(".parquet"):
         return get_parquet(file_path)
 
-    if not os.path.isfile(file_path):
-        raise ValueError("Invalid file path. Please provide a valid file path.")
-
-    if not file_path.endswith(".csv"):
-        raise ValueError("Unsupported file type. Supported file type is : .csv")
-
     raise ValueError("Unable to load data from provided file path.")
 
 
-def sim(file_path: str, rule_code: str):
+def build_profile(candidates: np.ndarray, data: np.ndarray) -> Profile:
+    """Build an `svvamp.Profile` from candidate labels and utility matrix."""
+    return Profile(preferences_ut=data, labels_candidates=candidates.tolist())
+
+
+def extract_winners(rule: Any, profile: Profile) -> list[str]:
+    """Extract winner labels from a `svvamp` rule instance."""
+    labels: list[Any] = profile.labels_candidates
+
+    if hasattr(rule, "winner_indices_"):
+        return [str(labels[int(index)]) for index in rule.winner_indices_]
+
+    if hasattr(rule, "w_"):
+        winner = rule.w_
+        if isinstance(winner, (float, np.floating)) and np.isnan(winner):
+            raise ValueError("Rule did not determine a winner.")
+        return [str(labels[int(winner)])]
+
+    if hasattr(rule, "winner_"):
+        return [str(rule.winner_)]
+
+    raise TypeError(f"Unexpected rule type: {type(rule)!r}")
+
+
+def sim(file_path: str, rule_code: str) -> None:
     """Execute a step of the simulation
 
     Args:
@@ -89,33 +109,24 @@ def sim(file_path: str, rule_code: str):
     """
 
     candidates, data = get_data(file_path)
-    candidate_names = candidates.tolist()
-
-    ballots = [
-        BallotLevels(
-            dict(zip(candidate_names, voter_scores.tolist(), strict=False)),
-            candidates=set(candidate_names),
-            scale=ScaleRange(low=0, high=1),
-        )
-        for voter_scores in data
-    ]
+    profile = build_profile(candidates, data)
 
     rule_code = rule_code.strip().upper()
 
     try:
         rule_builder = get_rule_builder(rule_code)
-        rule = rule_builder(ballots, set(candidate_names))
+        rule = rule_builder(profile, None)
         if isinstance(rule, NotImplementedError):
             raise rule
-        if not isinstance(rule, Rule):
+        if not hasattr(rule, "w_") and not hasattr(rule, "winner_indices_") and not hasattr(rule, "winner_"):
             raise TypeError(f"Unexpected rule type for '{rule_code}': {type(rule)!r}")
 
-        print(f"{rule_code.upper()} winner: {rule.cowinners_}")
+        print(f"{rule_code.upper()} winner: {extract_winners(rule, profile)}")
     except Exception as e:
         print(f"Error building rule '{rule_code}': {e}")
 
 
-def simulation(config_path: str):
+def simulation(config_path: str) -> SimulationStepResult:
     """Run the vote simulation based on the provided configuration.
 
     Args:
@@ -123,34 +134,29 @@ def simulation(config_path: str):
     """
     config = load_simulation_config(config_path)
 
-    candidates, data = get_data(config.data_file)
-    candidate_names = candidates.tolist()
-    ballots = [
-        BallotLevels(
-            dict(zip(candidate_names, voter_scores.tolist(), strict=False)),
-            candidates=set(candidate_names),
-            scale=ScaleRange(low=0, high=1),
-        )
-        for voter_scores in data
-    ]
+    if config.data_path is None:
+        raise ValueError("Configuration must include data_path for simulation")
 
-    step_result = SimulationStepResult(data_source=config.data_file)
+    candidates, data = get_data(config.data_path)
+    profile = build_profile(candidates, data)
+
+    step_result = SimulationStepResult(data_source=config.data_path)
 
     print("Simulation results:")
     for rule_code in config.rule_codes:
         try:
             normalized_code = rule_code.strip().upper()
             rule_builder = get_rule_builder(normalized_code)
-            rule = rule_builder(ballots, set(candidate_names))
+            rule = rule_builder(profile, None)
 
             if isinstance(rule, NotImplementedError):
                 raise rule
-            if not isinstance(rule, Rule):
+            if not hasattr(rule, "w_") and not hasattr(rule, "winner_indices_") and not hasattr(rule, "winner_"):
                 raise TypeError(f"Unexpected rule type for '{normalized_code}': {type(rule)!r}")
 
-            winners = [str(candidate) for candidate in rule.cowinners_]
+            winners = extract_winners(rule, profile)
             step_result.add_method_result(normalized_code, winners)
-            print(f"{normalized_code} winner: {winners}")
+            # print(f"{normalized_code} winner: {winners}")
         except Exception as e:
             print(f"Error building rule '{rule_code}': {e}")
 
@@ -162,15 +168,83 @@ def simulation(config_path: str):
     step_result.save_to_file(str(output_file))
     print(f"Saved simulation step to: {output_file}")
 
-    reloaded_step = SimulationStepResult(data_source=step_result.data_source)
-    reloaded_step.load_from_file(str(output_file))
+    return step_result
 
-    print("Reloaded simulation results:")
-    for rule_code, winners in reloaded_step.winners_by_rule.items():
-        print(f"{rule_code} winner: {winners}")
 
-    return reloaded_step
+def simulation_batch(config_path: str):
+    """Run vote simulations on all files in a folder specified in the configuration.
+
+    Args:
+        config_path (str): The file path of the simulation configuration.
+    """
+    config = load_simulation_config(config_path)
+
+    if not config.input_folder_path:
+        raise ValueError(
+            "Configuration does not contain 'input_folder_path' parameter. Please add it to run batch simulations."
+        )
+
+    input_folder = Path(config.input_folder_path)
+    if not input_folder.is_dir():
+        raise ValueError(f"Input folder not found: {input_folder}")
+
+    # Find all CSV and Parquet files in the folder
+    data_files = list(input_folder.glob("*.csv")) + list(input_folder.glob("*.parquet"))
+
+    if not data_files:
+        print(f"No CSV or Parquet files found in {input_folder}")
+        return
+
+    print(f"Found {len(data_files)} data files to process in {input_folder}")
+
+    output_dir = Path("data/sim")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    for file_path in sorted(data_files):
+        print(f"\n{'=' * 60}")
+        print(f"Processing: {file_path.name}")
+        print(f"{'=' * 60}")
+
+        try:
+            candidates, data = get_data(str(file_path))
+            profile = build_profile(candidates, data)
+
+            step_result = SimulationStepResult(data_source=str(file_path))
+
+            print("Simulation results:")
+            for rule_code in config.rule_codes:
+                try:
+                    normalized_code = rule_code.strip().upper()
+                    rule_builder = get_rule_builder(normalized_code)
+                    rule = rule_builder(profile, None)
+
+                    if isinstance(rule, NotImplementedError):
+                        raise rule
+                    if (
+                        not hasattr(rule, "w_")
+                        and not hasattr(rule, "winner_indices_")
+                        and not hasattr(rule, "winner_")
+                    ):
+                        raise TypeError(f"Unexpected rule type for '{normalized_code}': {type(rule)!r}")
+
+                    winners = extract_winners(rule, profile)
+                    step_result.add_method_result(normalized_code, winners)
+                    print(f"  {normalized_code}: {winners}")
+                except Exception as e:
+                    print(f"  Error building rule '{rule_code}': {e}")
+
+            output_file = output_dir / f"simulation_{file_path.stem}.parquet"
+            step_result.save_to_file(str(output_file))
+            print(f"Saved results to: {output_file}")
+
+        except Exception as e:
+            print(f"Error processing {file_path.name}: {e}")
+            continue
+
+    print(f"\n{'=' * 60}")
+    print("Batch simulation completed")
+    print(f"{'=' * 60}")
 
 
 if __name__ == "__main__":
-    simulation("config/simulation.toml")
+    simulation_batch("config/simulation.toml")
