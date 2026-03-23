@@ -81,9 +81,9 @@ class SimulationSeriesResult:
         df = pd.read_parquet(file_path)
         self.steps = []
         for data_source, group in df.groupby("DataSource"):
-            data_source = str(data_source)  # Ensure it's a string
+            data_source = str(data_source)  
             step_result = SimulationStepResult(data_source=data_source)
             for rule, winners in group.groupby("Rule")["Winner"]:
-                rule = str(rule)  # Ensure it's a string
+                rule = str(rule)  
                 step_result.winners_by_rule[rule] = winners.tolist()
             self.steps.append(step_result)

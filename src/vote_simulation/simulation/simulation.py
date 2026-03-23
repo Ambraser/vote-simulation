@@ -3,6 +3,8 @@ from csv import reader
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from tqdm import tqdm
+
 
 import numpy as np
 from svvamp import Profile
@@ -200,10 +202,7 @@ def simulation_batch(config_path: str):
     output_dir = Path("data/sim")
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    for file_path in sorted(data_files):
-        print(f"\n{'=' * 60}")
-        print(f"Processing: {file_path.name}")
-        print(f"{'=' * 60}")
+    for file_path in tqdm(sorted(data_files)):
 
         try:
             candidates, data = get_data(str(file_path))
@@ -211,7 +210,7 @@ def simulation_batch(config_path: str):
 
             step_result = SimulationStepResult(data_source=str(file_path))
 
-            print("Simulation results:")
+            #print("Simulation results:")
             for rule_code in config.rule_codes:
                 try:
                     normalized_code = rule_code.strip().upper()
@@ -229,13 +228,14 @@ def simulation_batch(config_path: str):
 
                     winners = extract_winners(rule, profile)
                     step_result.add_method_result(normalized_code, winners)
-                    print(f"  {normalized_code}: {winners}")
+                    # print(f"  {normalized_code}: {winners}")
                 except Exception as e:
-                    print(f"  Error building rule '{rule_code}': {e}")
+                    pass
+                    #print(f"  Error building rule '{rule_code}': {e}")
 
             output_file = output_dir / f"simulation_{file_path.stem}.parquet"
             step_result.save_to_file(str(output_file))
-            print(f"Saved results to: {output_file}")
+            #print(f"Saved results to: {output_file}")
 
         except Exception as e:
             print(f"Error processing {file_path.name}: {e}")

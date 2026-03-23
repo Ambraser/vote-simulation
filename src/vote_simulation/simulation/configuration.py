@@ -19,15 +19,15 @@ class SimulationConfig:
     seed: int = 0
     input_folder_path: str | None = None  # optional, for batch simulation on multiple files
 
-    # TODO : add every parametes
 
 
 DEFAULT_CONFIG_PATH = Path("config/simulation.toml")
 
 
-def load_simulation_config(config_path: str | Path) -> SimulationConfig:
+def load_simulation_config(config_path: str | Path = DEFAULT_CONFIG_PATH) -> SimulationConfig:
     """Load and validate a simulation config file."""
     path = Path(config_path)
+
     # Check path
     if not path.is_file():
         raise ValueError(f"Configuration file not found: {path}")
@@ -39,10 +39,6 @@ def load_simulation_config(config_path: str | Path) -> SimulationConfig:
     # simulation section must exist and be a dict
     if not isinstance(simulation, dict):
         raise ValueError("Invalid configuration: missing [simulation] section")
-
-    # data_file = simulation.get("data_file")
-    # if not isinstance(data_file, str) or not data_file.strip():
-    #    raise ValueError("Invalid configuration: simulation.data_file must be a non-empty string")
 
     rule_codes = simulation.get("rule_codes")
     if not isinstance(rule_codes, list) or not rule_codes:
