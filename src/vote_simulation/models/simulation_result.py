@@ -27,8 +27,8 @@ class SimulationStepResult:
         # Convert the winners_by_rule dictionary to a DataFrame
         df = pd.DataFrame(
             [(rule, winner) for rule, winners in self.winners_by_rule.items() for winner in winners],
+            columns=["Rule", "Winner"],
         )
-        df.columns = ["Rule", "Winner"]
 
         # Save the DataFrame to a parquet file
         df.to_parquet(file_path, index=False)
@@ -81,9 +81,9 @@ class SimulationSeriesResult:
         df = pd.read_parquet(file_path)
         self.steps = []
         for data_source, group in df.groupby("DataSource"):
-            data_source = str(data_source)  
+            data_source = str(data_source)
             step_result = SimulationStepResult(data_source=data_source)
             for rule, winners in group.groupby("Rule")["Winner"]:
-                rule = str(rule)  
+                rule = str(rule)
                 step_result.winners_by_rule[rule] = winners.tolist()
             self.steps.append(step_result)

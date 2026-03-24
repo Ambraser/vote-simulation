@@ -20,7 +20,6 @@ class SimulationConfig:
     input_folder_path: str | None = None  # optional, for batch simulation on multiple files
 
 
-
 DEFAULT_CONFIG_PATH = Path("config/simulation.toml")
 
 
