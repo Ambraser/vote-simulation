@@ -1,22 +1,57 @@
 [simulation]
-input_folder_path = "/home/ambraser/Desktop/Stage/Code/R/data_simulation_2025/data_simu_UNI/"
-data_path = "/home/ambraser/Desktop/Stage/Code/R/data_simulation_2025/data_simu_UNI/simu_UNI_v_101_c_14_i_693.csv"
+# Legacy paths (optional — used by `simulation()` and `simulation_batch()`)
+# input_folder_path = "/home/ambraser/Desktop/Stage/Code/R/data_simulation_2025/data_simu_UNI/"
+# data_path = "/home/ambraser/Desktop/Stage/Code/R/data_simulation_2025/data_simu_UNI/simu_UNI_v_101_c_14_i_693.csv"
 
-#Data generation model 
-generative_models = ["diversity", "uniform"]
+# Root directory for gen/ and sim_result/
+output_base_path = "../data/"
+
+# Data generation models (codes registered in generator_registry)
+# Available: UNI, IC, IANC, EUCLID, GAUSS, LADDER, SPHEROID, PERTURB, UNANIMOUS, UFR, VMF_HC, VMF_HS
+generative_models = ["VMF_HC"]
 
 # Voting methods to execute
-rule_codes = ["AP_T", "AP_K", "BALD", "BLAC", "BORD", "CAIR", "CSUM", "CVIR", "BUCK_I", "BUCK_R", "COOM", "COPE", "DODG_C", "DODG_S", "EXHB", "HARE", "IRV", "IRVA", "IRVD", "ICRV", "KIMR", "L4VD", "MJ", "MMAX", "NANS", "PLU1", "PLU2", "RPAR", "RV", "SCHU", "SIRV", "SPCY", "STAR", "TIDE", "VETO", "WOOD", "YOUN"]
+rule_codes = ["AP_T", "AP_K", "BALD", "BLAC", "BORD", "CAIR", "CSUM", "CVIR", "BUCK_I", "BUCK_R", "COOM", "COPE", "DODG_C", "DODG_S", "EXHB", "HARE", "IRV", "IRVA", "IRVD", "ICRV", "KIMR", "MJ", "MMAX", "NANS", "PLU1", "PLU2", "RPAR", "RV", "SCHU", "SIRV", "SPCY", "STAR", "TIDE", "VETO", "WOOD", "YOUN"]
 #rule_codes = ["AP_T", "AP_K", "BALD", "BLAC", "BORD", "CAIR", "CSUM", "CVIR", "BUCK_I", "BUCK_R", "COOM", "COPE", "DODG_C", "DODG_S", "EXHB", "HARE", "IRV", "IRVA", "IRVD", "ICRV", "KEME", "KIMR", "L4VD", "MJ", "MMAX", "NANS", "PLU1", "PLU2", "RPAR", "RV", "SCHU", "SIRV", "SLAT", "SPCY", "STAR", "TIDE", "VETO", "WOOD", "YOUN"]
 
 # Numbers of candidates
-candidates = [3,4,5,6,7,9,14]
+candidates = [3, 14]
 
 # Numbers of voters
-voters = [9,15,21,51,101,1001]
+voters = [11, 101, 1001]
 
-# Iterations numbers 
+# Iterations per (model, voters, candidates) combination
 iterations = 1000
 
-# seed 
+# Seed for reproducibility
 seed = 42
+
+# ─────────────────────────────────────────────────────────────────
+# Optional per-model generator parameters
+# Keys must match the model code (uppercased).
+# ─────────────────────────────────────────────────────────────────
+
+# [generator_params.EUCLID]
+# box_dimensions = [1.0, 1.0]
+
+# [generator_params.GAUSS]
+# sigma = [1.0]
+
+# [generator_params.LADDER]
+# n_rungs = 21
+
+# [generator_params.SPHEROID]
+# stretching = 1.0
+
+# [generator_params.PERTURB]
+# theta = 0.1
+
+# [generator_params.UFR]
+# n_max_rankings = 4
+
+# [generator_params.VMF_HC]
+# vmf_concentration = 10.0
+
+# [generator_params.VMF_HS]
+# vmf_concentration = 10.0
+# stretching = 1.0

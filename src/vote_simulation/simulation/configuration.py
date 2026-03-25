@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -18,6 +18,9 @@ class SimulationConfig:
     iterations: int = 1
     seed: int = 0
     input_folder_path: str | None = None  # optional, for batch simulation on multiple files
+    generative_models: list[str] = field(default_factory=list)  # e.g. ["UNI", "IC"]
+    output_base_path: str = "data"  # root folder for gen/ and sim_result/
+    generator_params: dict[str, dict[str, object]] = field(default_factory=dict)  # per-model extra params
 
 
 DEFAULT_CONFIG_PATH = Path("config/simulation.toml")
@@ -89,6 +92,29 @@ def load_simulation_config(config_path: str | Path = DEFAULT_CONFIG_PATH) -> Sim
             else str(Path(input_folder_path).resolve())
         )
 
+    # --- Generative models ---
+    raw_gen_models = simulation.get("generative_models")
+    generative_models: list[str] = []
+    if raw_gen_models is not None:
+        if not isinstance(raw_gen_models, list):
+            raise ValueError("Invalid configuration: simulation.generative_models must be a list")
+        generative_models = [str(m).strip().upper() for m in raw_gen_models if str(m).strip()]
+
+    # --- Output base path ---
+    output_base_path = simulation.get("output_base_path", "data")
+    if not isinstance(output_base_path, str) or not output_base_path.strip():
+        output_base_path = "data"
+    if not Path(output_base_path).is_absolute():
+        output_base_path = str((path.parent / output_base_path).resolve())
+
+    # --- Per-model generator params (optional TOML sub-tables) ---
+    generator_params: dict[str, dict[str, object]] = {}
+    gen_params_section = payload.get("generator_params")
+    if isinstance(gen_params_section, dict):
+        for model_key, params in gen_params_section.items():
+            if isinstance(params, dict):
+                generator_params[model_key.strip().upper()] = dict(params)
+
     return SimulationConfig(
         data_path=data_path,
         rule_codes=normalized_rule_codes,
@@ -97,4 +123,7 @@ def load_simulation_config(config_path: str | Path = DEFAULT_CONFIG_PATH) -> Sim
         iterations=iterations,
         seed=seed,
         input_folder_path=input_folder_path,
+        generative_models=generative_models,
+        output_base_path=output_base_path,
+        generator_params=generator_params,
     )

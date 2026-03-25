@@ -27,7 +27,7 @@ class SimulationStepResult:
         # Convert the winners_by_rule dictionary to a DataFrame
         df = pd.DataFrame(
             [(rule, winner) for rule, winners in self.winners_by_rule.items() for winner in winners],
-            columns=["Rule", "Winner"],
+            columns=pd.Index(["Rule", "Winner"]),
         )
 
         # Save the DataFrame to a parquet file

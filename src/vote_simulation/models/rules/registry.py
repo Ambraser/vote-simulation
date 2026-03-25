@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
+from typing import Any, Protocol
 
 import numpy as np
 from svvamp import (
@@ -46,7 +47,15 @@ from svvamp.rules.rule_woodall import RuleWoodall
 from svvamp.rules.rule_young import RuleYoung
 
 RuleInput = Profile | Sequence[Mapping[str, float]]
-RuleBuilder = Callable[[RuleInput, set[str] | None], object]
+
+
+class RuleResult(Protocol):
+    """Protocol for rule results that have been post-processed to include co-winners."""
+
+    cowinners_: list[str]
+
+
+RuleBuilder = Callable[[RuleInput, set[str] | None], RuleResult]
 # Index
 _RULE_BUILDERS: dict[str, RuleBuilder] = {}
 
@@ -104,7 +113,7 @@ def _compute_cowinners(rule: object) -> list[str]:
     return []
 
 
-def _ensure_cowinners(rule: object) -> object:
+def _ensure_cowinners(rule: Any) -> RuleResult:
     if hasattr(rule, "cowinners_"):
         return rule
     rule.cowinners_ = _compute_cowinners(rule)
@@ -137,8 +146,8 @@ def _grade_bounds(profile: Profile) -> tuple[float, float]:
     return float(np.min(profile.preferences_ut)), float(np.max(profile.preferences_ut))
 
 
-def _build_with_rule(rule_factory: Callable[[Profile], object]) -> RuleBuilder:
-    def builder(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> object:
+def _build_with_rule(rule_factory: Callable[[Profile], Any]) -> RuleBuilder:
+    def builder(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> RuleResult:
         profile = _ensure_profile(profile_or_ballots, candidates)
         return _ensure_cowinners(rule_factory(profile))
 
@@ -189,7 +198,7 @@ register_rule("BORD", _build_with_rule(lambda profile: RuleBorda()(profile)))
 register_rule("COOM", _build_with_rule(lambda profile: RuleCoombs()(profile)))
 
 
-def _build_l4vd(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> object:
+def _build_l4vd(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> RuleResult:
     """L4VD rule : code L4VD"""
     raise NotImplementedError("L4VD rule is not implemented yet")
 
@@ -197,7 +206,7 @@ def _build_l4vd(profile_or_ballots: RuleInput, candidates: set[str] | None = Non
 register_rule("L4VD", _build_l4vd)  # TODO: implement L4VD rule
 
 
-def _build_rv(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> object:
+def _build_rv(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> RuleResult:
     """Range voting rule : code RV"""
     profile = _ensure_profile(profile_or_ballots, candidates)
     min_grade, max_grade = _grade_bounds(profile)
@@ -210,7 +219,7 @@ register_rule("RV", _build_rv)
 register_rule("COPE", _build_with_rule(lambda profile: RuleCopeland(cm_option="exact")(profile)))
 
 
-def _build_majority_judgment(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> object:
+def _build_majority_judgment(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> RuleResult:
     """Majority judgment rule : code MJ"""
     profile = _ensure_profile(profile_or_ballots, candidates)
     min_grade, max_grade = _grade_bounds(profile)
@@ -222,7 +231,7 @@ def _build_majority_judgment(profile_or_ballots: RuleInput, candidates: set[str]
 register_rule("MJ", _build_majority_judgment)
 
 
-def _build_star(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> object:
+def _build_star(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> RuleResult:
     """STAR rule with grade bounds inferred from profile."""
     profile = _ensure_profile(profile_or_ballots, candidates)
     min_grade, max_grade = _grade_bounds(profile)
@@ -230,39 +239,18 @@ def _build_star(profile_or_ballots: RuleInput, candidates: set[str] | None = Non
 
 
 register_rule("BUCK_R", _build_with_rule(lambda profile: RuleBucklin()(profile)))
-
-
 register_rule("DODG_S", _build_with_rule(lambda profile: RuleDodgson()(profile)))
-
-
 register_rule("NANS", _build_with_rule(lambda profile: RuleNanson()(profile)))
-
-
 register_rule("AP_T", _build_with_rule(lambda profile: RuleApproval(approval_threshold=0.7)(profile)))
-
-
 register_rule("BALD", _build_with_rule(lambda profile: RuleBaldwin()(profile)))
-
-
 register_rule("BUCK_I", _build_with_rule(lambda profile: RuleIteratedBucklin()(profile)))
-
-
 register_rule("HARE", _build_with_rule(lambda profile: RuleIRV()(profile)))
 register_rule("IRV", _build_with_rule(lambda profile: RuleIRV()(profile)))
-
-
 register_rule("MMAX", _build_with_rule(lambda profile: RuleMaximin()(profile)))
-
-
 register_rule("SCHU", _build_with_rule(lambda profile: RuleSchulze()(profile)))
-
-
 register_rule("AP_K", _build_with_rule(lambda profile: RuleKApproval(k=2)(profile)))
-
 register_rule("STAR", _build_star)
-
 register_rule("DODG_C", _build_with_rule(lambda profile: RuleDodgson()(profile)))
-
 register_rule("CSUM", _build_with_rule(lambda profile: RuleCondorcetSumDefeats()(profile)))
 register_rule("IRVD", _build_with_rule(lambda profile: RuleIRVDuels()(profile)))
 register_rule("KEME", _build_with_rule(lambda profile: RuleKemeny(winner_option="exact")(profile)))

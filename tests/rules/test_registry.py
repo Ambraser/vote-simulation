@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import pytest
 
 from vote_simulation.models.data_generation.data_instance import DataInstance
@@ -42,6 +44,7 @@ def test_cope_rule():
     rule_instance = rule_builder(profile, None)
     assert rule_instance.cowinners_ == ["Candidate 1", "Candidate 4"]
 
+
 def test_dodg_s_rule():
     """Test the DODG rule with a dummy dataset."""
     rule_builder = get_rule_builder("DODG_S")
@@ -49,18 +52,19 @@ def test_dodg_s_rule():
     assert rule_instance.cowinners_ == []
 
 
-def test_approval_threshold(): 
+def test_approval_threshold():
     """Test that the correct threshold is used for the APPROVAL rule."""
     rule_builder = get_rule_builder("AP_T")
     rule_instance = rule_builder(profile, None)
-    assert rule_instance.approval_threshold == 0.7
+    assert cast(Any, rule_instance).approval_threshold == 0.7
     assert rule_instance.cowinners_ == ["Candidate 1"]
+
 
 def test_k_approval():
     """Test that the correct k is used for the K_APPROVAL rule."""
     rule_builder = get_rule_builder("AP_K")
     rule_instance = rule_builder(profile, None)
-    assert rule_instance.k == 2
+    assert cast(Any, rule_instance).k == 2
     assert rule_instance.cowinners_ == ["Candidate 1"]
 
 
@@ -70,11 +74,13 @@ def test_bald():
     rule_instance = rule_builder(profile, None)
     assert rule_instance.cowinners_ == ["Candidate 4"]
 
+
 def test_blac():
     """Test the BLAC rule with a dummy dataset."""
     rule_builder = get_rule_builder("BLAC")
     rule_instance = rule_builder(profile, None)
     assert rule_instance.cowinners_ == ["Candidate 1"]
+
 
 def test_borda():
     """Test the BORDA rule with a dummy dataset."""
@@ -82,11 +88,13 @@ def test_borda():
     rule_instance = rule_builder(profile, None)
     assert rule_instance.cowinners_ == ["Candidate 1"]
 
+
 def test_condorcet_abs_irv():
     """Test the CONDORCET_ABS_IRV rule with a dummy dataset."""
     rule_builder = get_rule_builder("CAIR")
     rule_instance = rule_builder(profile, None)
     assert rule_instance.cowinners_ == ["Candidate 1"]
+
 
 def test_condorcet_sum_defeat():
     """Test the CONDORCET_SUM_DEFEAT rule with a dummy dataset."""
@@ -94,11 +102,13 @@ def test_condorcet_sum_defeat():
     rule_instance = rule_builder(profile, None)
     assert rule_instance.cowinners_ == ["Candidate 4"]
 
+
 def test_condorcet_vtb_irv():
     """Test the CONDORCET_VTB_IRV rule with a dummy dataset."""
     rule_builder = get_rule_builder("CVIR")
     rule_instance = rule_builder(profile, None)
     assert rule_instance.cowinners_ == ["Candidate 1"]
+
 
 def test_bucklin():
     """Test the BUCKLIN rule with a dummy dataset."""
@@ -106,11 +116,13 @@ def test_bucklin():
     rule_instance = rule_builder(profile, None)
     assert rule_instance.cowinners_ == ["Candidate 1"]
 
+
 def test_bucklin_round():
     """Test the BUCKLIN_ROUND rule with a dummy dataset."""
     rule_builder = get_rule_builder("BUCK_R")
     rule_instance = rule_builder(profile, None)
     assert rule_instance.cowinners_ == ["Candidate 1"]
+
 
 def test_coombs():
     """Test the COOMBS rule with a dummy dataset."""
@@ -132,11 +144,13 @@ def test_hare():
     rule_instance = rule_builder(profile, None)
     assert rule_instance.cowinners_ == ["Candidate 1"]
 
+
 def test_kim_roush():
     """Test the KIM_ROUSH rule with a dummy dataset."""
     rule_builder = get_rule_builder("KIMR")
     rule_instance = rule_builder(profile, None)
     assert rule_instance.cowinners_ == ["Candidate 6"]
+
 
 def test_majority_judgment():
     """Test the MAJORITY_JUDGMENT rule with a dummy dataset."""
@@ -151,11 +165,13 @@ def test_MMAX_rule():
     rule_instance = rule_builder(profile, None)
     assert rule_instance.cowinners_ == ["Candidate 4"]
 
+
 def test_nanson():
     """Test the NANSON rule with a dummy dataset."""
     rule_builder = get_rule_builder("NANS")
     rule_instance = rule_builder(profile, None)
     assert rule_instance.cowinners_ == ["Candidate 4"]
+
 
 def test_plurality():
     """Test the PLURALITY rule with a dummy dataset."""
@@ -163,11 +179,13 @@ def test_plurality():
     rule_instance = rule_builder(profile, None)
     assert rule_instance.cowinners_ == ["Candidate 1"]
 
+
 def test_tworounds():
     """Test the TWO_ROUNDS rule with a dummy dataset."""
     rule_builder = get_rule_builder("PLU2")
     rule_instance = rule_builder(profile, None)
     assert rule_instance.cowinners_ == ["Candidate 1"]
+
 
 def test_ranked_pair():
     """Test the RANKED_PAIR rule with a dummy dataset."""
@@ -175,11 +193,13 @@ def test_ranked_pair():
     rule_instance = rule_builder(profile, None)
     assert rule_instance.cowinners_ == ["Candidate 4"]
 
+
 def test_range_voting():
     """Test the RANGE_VOTING rule with a dummy dataset."""
     rule_builder = get_rule_builder("RV")
     rule_instance = rule_builder(profile, None)
     assert rule_instance.cowinners_ == ["Candidate 1"]
+
 
 def test_schultz_rule():
     """Test the SCHULTZ rule with a dummy dataset."""
@@ -187,11 +207,13 @@ def test_schultz_rule():
     rule_instance = rule_builder(profile, None)
     assert rule_instance.cowinners_ == ["Candidate 4"]
 
+
 def test_smith_irv():
     """Test the SMITH_IRV rule with a dummy dataset."""
     rule_builder = get_rule_builder("SIRV")
     rule_instance = rule_builder(profile, None)
     assert rule_instance.cowinners_ == ["Candidate 1"]
+
 
 def test_split_cycle():
     """Test the SPLIT_CYCLE rule with a dummy dataset."""
@@ -199,17 +221,20 @@ def test_split_cycle():
     rule_instance = rule_builder(profile, None)
     assert rule_instance.cowinners_ == ["Candidate 4"]
 
+
 def test_star():
     """Test the STAR rule with a dummy dataset."""
     rule_builder = get_rule_builder("STAR")
     rule_instance = rule_builder(profile, None)
     assert rule_instance.cowinners_ == ["Candidate 1"]
 
-def test_tideman() :
+
+def test_tideman():
     """Test the TIDEMAN rule with a dummy dataset."""
     rule_builder = get_rule_builder("TIDE")
     rule_instance = rule_builder(profile, None)
     assert rule_instance.cowinners_ == ["Candidate 4"]
+
 
 def test_antiplurality():
     """Test the ANTI_PLURALITY rule with a dummy dataset."""
@@ -217,11 +242,13 @@ def test_antiplurality():
     rule_instance = rule_builder(profile, None)
     assert rule_instance.cowinners_ == ["Candidate 7"]
 
+
 def test_woodall():
     """Test the WOOD rule with a dummy dataset."""
     rule_builder = get_rule_builder("WOOD")
     rule_instance = rule_builder(profile, None)
     assert rule_instance.cowinners_ == ["Candidate 1"]
+
 
 def test_young():
     """Test the YOUNG rule with a dummy dataset."""
