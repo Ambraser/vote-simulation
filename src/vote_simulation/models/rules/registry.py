@@ -88,6 +88,14 @@ def _winner_index(rule: object) -> int | None:
 
 
 def _compute_cowinners(rule: object) -> list[str]:
+    profile = getattr(rule, "profile_", None)
+    weak_winners = getattr(profile, "weak_condorcet_winners", None)
+    if weak_winners is not None:
+        weak_winner_indices = np.flatnonzero(np.asarray(weak_winners, dtype=bool))
+        n_candidates = getattr(profile, "n_c", None)
+        if isinstance(n_candidates, int) and n_candidates == 2 and weak_winner_indices.size == 2:
+            return [_label_for_candidate(rule, int(candidate_index)) for candidate_index in weak_winner_indices]
+
     scores = getattr(rule, "scores_", None)
     if scores is not None:
         try:
@@ -104,8 +112,6 @@ def _compute_cowinners(rule: object) -> list[str]:
     if winner_index is not None:
         return [_label_for_candidate(rule, winner_index)]
 
-    profile = getattr(rule, "profile_", None)
-    weak_winners = getattr(profile, "weak_condorcet_winners", None)
     if weak_winners is not None:
         weak_winner_indices = np.flatnonzero(np.asarray(weak_winners, dtype=bool))
         if weak_winner_indices.size > 0:

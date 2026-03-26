@@ -193,7 +193,7 @@ def generate_data(config_path: str) -> list[str]:
 # full pipeline
 
 
-def simulation_full(config_path: str) -> None:
+def simulation_from_config(config_path: str) -> None:
     """Full pipeline: generate profiles, apply rules, save results.
 
     For every ``(model, n_voters, n_candidates, iteration)`` combination:
@@ -235,6 +235,14 @@ def simulation_full(config_path: str) -> None:
                         pbar.update(1)
 
     print("Full simulation completed.")
+
+
+def simulation_full(config_path: str) -> None:
+    """Full pipeline: generate profiles, apply rules, save results.
+
+    Alias for :func:`simulation_from_config`.
+    """
+    return simulation_from_config(config_path)
 
 
 def simulation_batch(config_path: str) -> None:
@@ -289,7 +297,7 @@ def _validate_generation_config(config: SimulationConfig) -> None:
 
 
 if __name__ == "__main__":
-    simulation_full("config/simulation.toml")
+    simulation_from_config("config/simulation.toml")
     # sim("data/gen/UNI_v101_c3/iter_0001.parquet", "PLU1")
 #
 # data = DataInstance("data/gen/VMF_HC_v101_c14/iter_0001.parquet")

@@ -83,4 +83,4 @@ Issue to fix not working for now
 | ![plot3](img/vmf_hsPlot3.png) | ![mds](img/vmf_hsMDS.png) |
 |||
 
-::: vote_simulation.models.data_generation.generator_registry
+// ::: vote_simulation.models.data_generation.generator_registry
