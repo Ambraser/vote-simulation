@@ -17,7 +17,7 @@ A framework to compare social choice rules
 
 Documentation is built with [Zensical](https://zensical.org/) and deployed to GitHub Pages.
 
-* **Live site:** https://Damidas0.github.io/vote_simulation/
+* **Live site:** https://Damidas0.github.io/vote-simulation/
 * **Preview locally:** `just docs-serve` (serves at http://localhost:8000)
 * **Build:** `just docs-build`
 
