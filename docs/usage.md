@@ -64,23 +64,6 @@ output_base_path = "../data"
 
 The result is written under `data/sim/`.
 
-## Run rules on a folder of files
-
-To process every CSV or Parquet file in a directory:
-
-```python
-from vote_simulation.simulation import simulation_batch
-
-simulation_batch("config/batch.toml")
-```
-
-Expected config shape:
-
-```toml
-[simulation]
-rule_codes = ["PLU1", "BORD"]
-output_base_path = "../data"
-```
 
 ## Example generative configuration
 

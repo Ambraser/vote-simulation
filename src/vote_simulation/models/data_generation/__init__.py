@@ -5,6 +5,7 @@ from vote_simulation.models.data_generation.generator_registry import (
     GeneratorBuilder,
     get_generator_builder,
     list_generator_codes,
+    make_generator_builder,
     register_generator,
 )
 
@@ -13,5 +14,6 @@ __all__ = [
     "GeneratorBuilder",
     "get_generator_builder",
     "list_generator_codes",
+    "make_generator_builder",
     "register_generator",
 ]

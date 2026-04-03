@@ -5,6 +5,7 @@ from __future__ import annotations
 from builtins import max as builtins_max
 from builtins import min as builtins_min
 from dataclasses import dataclass, field
+import os
 from textwrap import indent
 from typing import Any
 
@@ -27,6 +28,7 @@ def _plot_heatmap(
     annotation_fmt: str = ".0f",
     colorbar_label: str = "Distance",
     show: bool = True,
+    save_path: str | None = None,
 ) -> Any:
     """Render a matrix as a white-to-blue heatmap.
 
@@ -44,7 +46,7 @@ def _plot_heatmap(
     if ax is None:
         _, ax = plt.subplots(figsize=(figure_size, figure_size), constrained_layout=True)
 
-    image = ax.imshow(matrix, cmap="Blues", vmin=vmin, vmax=vmax, interpolation="nearest")
+    image = ax.imshow(matrix, cmap="Reds", vmin=vmin, vmax=vmax, interpolation="nearest")
     ax.set_aspect("equal")
     ax.set_xticks(range(rule_count), labels=labels)
     ax.set_yticks(range(rule_count), labels=labels)
@@ -79,6 +81,10 @@ def _plot_heatmap(
 
     if show:
         plt.show()
+    if save_path is not None:
+        #check if the directory exists, create it if not
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        plt.savefig(save_path)
 
     return ax
 
@@ -344,6 +350,7 @@ class SimulationSeriesResult:
     def plot_mean_distance_matrix(
         self,
         ax: Any | None = None,
+        folder_save_path: str | None = None,
         *,
         annotate: bool = True,
         show: bool = True,
@@ -355,6 +362,10 @@ class SimulationSeriesResult:
 
         if self._iteration_count == 0:
             raise ValueError("Cannot plot: no steps have been added yet.")
+        
+        if folder_save_path is not None:
+            os.makedirs(folder_save_path, exist_ok=True)
+            save_path = os.path.join(folder_save_path, f"{self._iteration_count}_mean_distance_matrix.png")
 
         return _plot_heatmap(
             self.mean_distance_matrix,
@@ -365,7 +376,103 @@ class SimulationSeriesResult:
             annotation_fmt=".1f",
             colorbar_label="Mean distance (%)",
             show=show,
+            save_path=save_path,
         )
+    
+    def map_rules_2d(self) -> np.ndarray:
+        """Project rules into 2D using Multi-Dimensional Scaling (MDS).
+
+        Uses the mean distance matrix as a precomputed dissimilarity matrix
+        so that pairwise distances in the 2D plane approximate the original
+        rule-to-rule distances.
+
+        Returns:
+            np.ndarray: Array of shape ``(n_rules, 2)`` with 2D coordinates.
+
+        Raises:
+            ValueError: If no steps have been added yet.
+        """
+        if self._iteration_count == 0:
+            raise ValueError("Cannot project: no steps have been added yet.")
+
+        from sklearn.manifold import MDS
+
+        distance_matrix = self.mean_distance_matrix
+        mds = MDS(n_components=2, dissimilarity="precomputed", random_state=42, normalized_stress="auto")
+        coords = mds.fit_transform(distance_matrix)
+        return coords
+
+    def plot_rules_2d(
+        self,
+        ax: Any | None = None,
+        *,
+        show: bool = True,
+        save_path: str | None = None,
+    ) -> Any:
+        """Plot rules as labeled points in a 2D MDS projection.
+
+        Distances between points approximate mean pairwise rule distances.
+
+        Args:
+            ax: Optional matplotlib Axes to draw on. A new figure is created
+                when *None*.
+            show: Whether to call ``plt.show()`` at the end.
+            save_path: Optional path to save the plot as an image file.
+
+        Returns:
+            The matplotlib Axes used for plotting.
+        """
+        import matplotlib.pyplot as plt
+
+        coords = self.map_rules_2d()
+        labels = self._rule_order
+
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(7, 7), constrained_layout=True)
+            fig.patch.set_facecolor("white")
+
+        # scatter points
+        ax.scatter(
+            coords[:, 0],
+            coords[:, 1],
+            s=60,
+            #c="#3366CC",
+            edgecolors="white",
+            linewidths=0.6,
+            zorder=3,
+        )
+
+        # label each point with its rule short code
+        for i, label in enumerate(labels):
+            ax.annotate(
+                label,
+                (coords[i, 0], coords[i, 1]),
+                textcoords="offset points",
+                xytext=(6, 6),
+                fontsize=8,
+                fontweight="medium",
+                color="#222222",
+            )
+
+        ax.set_title(
+            f"Rule proximity map  ({self._iteration_count} iterations)",
+            fontsize=11,
+            pad=10,
+        )
+        ax.set_xlabel("MDS 1", fontsize=9, color="#555555")
+        ax.set_ylabel("MDS 2", fontsize=9, color="#555555")
+        ax.tick_params(labelsize=8, colors="#888888")
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.spines["left"].set_color("#CCCCCC")
+        ax.spines["bottom"].set_color("#CCCCCC")
+        ax.set_aspect("equal")
+        ax.grid(True, linestyle="--", linewidth=0.4, alpha=0.5)
+
+        if show:
+            plt.show()
+
+        return ax
 
     def save_to_file(self, file_path: str) -> None:
         """Save the series result to a parquet file.

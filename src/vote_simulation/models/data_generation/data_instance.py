@@ -33,12 +33,51 @@ class DataInstance:
 
     def __init__(self, file_path: str):
         try:
-            self.candidates, self.data = self.get_data(file_path)
+            self.candidates, raw = self.get_data(file_path)
+            self.data, self._orig_min, self._orig_max = self._normalize(raw)
             self.profile = self.build_profile(self.candidates, self.data)
             self.file_path = file_path
-            self.model = None  # If
+            self.model = None
         except Exception as e:
             raise ValueError(f"Error initializing DataInstance: {e}") from e
+
+    # -------------------------------------------------- normalization helpers
+
+    @staticmethod
+    def _normalize(data: np.ndarray) -> tuple[np.ndarray, float, float]:
+        """Min-max normalize a utility matrix to [0, 1].
+
+        The transformation is a global affine map that preserves every
+        relative difference in the original data, making it fully
+        reversible via :meth:`denormalize`.
+
+        Args:
+            data: 2-D array of shape ``(n_voters, n_candidates)``.
+
+        Returns:
+            A tuple ``(normalized, orig_min, orig_max)``.
+        """
+        dmin: float = float(data.min())
+        dmax: float = float(data.max())
+        spread = dmax - dmin
+        if spread > 0.0:
+            normalized = (data - dmin) * (1.0 / spread)   # one division
+        else:
+            # all utilities identical → perfect indifference
+            normalized = np.full_like(data, 0.5)
+        return normalized, dmin, dmax
+
+    def denormalize(self) -> np.ndarray:
+        """Restore the original (pre-normalization) utility values.
+
+        Returns:
+            2-D array with the same shape as ``self.data`` containing
+            the utilities on their original scale.
+        """
+        spread = self._orig_max - self._orig_min
+        if spread > 0.0:
+            return self.data * spread + self._orig_min
+        return np.full_like(self.data, self._orig_min)
 
     # --------------------------------------------------------- class methods
 
@@ -76,8 +115,12 @@ class DataInstance:
 
         instance = object.__new__(cls)
         instance.candidates = np.asarray(profile.labels_candidates, dtype=str)
-        instance.data = np.asarray(profile.preferences_ut, dtype=np.float64)
-        instance.profile = profile
+        raw = np.asarray(profile.preferences_ut, dtype=np.float64)
+        instance.data, instance._orig_min, instance._orig_max = cls._normalize(raw)
+        instance.profile = Profile(
+            preferences_ut=instance.data,
+            labels_candidates=profile.labels_candidates,
+        )
         instance.file_path = ""  # not loaded from disk
         return instance
 
@@ -94,8 +137,12 @@ class DataInstance:
         """
         instance = object.__new__(cls)
         instance.candidates = np.asarray(profile.labels_candidates, dtype=str)
-        instance.data = np.asarray(profile.preferences_ut, dtype=np.float64)
-        instance.profile = profile
+        raw = np.asarray(profile.preferences_ut, dtype=np.float64)
+        instance.data, instance._orig_min, instance._orig_max = cls._normalize(raw)
+        instance.profile = Profile(
+            preferences_ut=instance.data,
+            labels_candidates=profile.labels_candidates,
+        )
         instance.file_path = file_path
         return instance
 

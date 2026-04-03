@@ -231,6 +231,47 @@ def simulation_from_config(config_path: str) -> None:
 
     print("Full simulation completed.")
 
+def simulation_instance(
+        gen_code:str, 
+        n_v:int,
+        n_c:int, 
+        rule_codes:list[str],
+        n_iteration:int = 1000, 
+        seed:int = 161,
+    ) -> SimulationSeriesResult:
+    """Run the workflow on a single instance
+
+    Args:
+        gen_code (str): Generative model code (list can be found in doc)
+        n_v (int): number of voters 
+        n_c (int): number of candidates
+        rule_codes (list[str]): list of rule_codes to apply
+        n_iteration (int, optional): number of iterations. Defaults to 1000.
+        seed (int, optional): seed for reproductability. Defaults to 161.
+
+    Returns:
+        SimulationSeriesResult: Result of the sim instance
+    """
+    print("Running simulation")
+    #total = n_iteration
+    series = SimulationSeriesResult()
+    with tqdm(total=n_iteration, desc="Simulating") as pbar:
+        for it in range(n_iteration):
+            di = obtain_data_instance(
+                model=gen_code,
+                n_v=n_v,
+                n_c=n_c,
+                iteration=it,
+                seed=seed,
+                base_path="data",
+            )
+            step = run_rules_on_instance(di, rule_codes)
+            series.add_step(step)
+            pbar.update(1)
+    print("Simulation completed.")
+    return series
+
+
 
 def simulation_full(config_path: str) -> None:
     """Full pipeline: generate profiles, apply rules, save results.
@@ -240,42 +281,6 @@ def simulation_full(config_path: str) -> None:
     return simulation_from_config(config_path)
 
 
-def simulation_batch(config_path: str):
-    """Run vote simulations on all files in a folder specified in the configuration."""
-    config = load_simulation_config(config_path)
-
-    if not config.input_folder_path:
-        raise ValueError(
-            "Configuration does not contain 'input_folder_path' parameter. Please add it to run batch simulations."
-        )
-
-    input_folder = Path(config.input_folder_path)
-    if not input_folder.is_dir():
-        raise ValueError(f"Input folder not found: {input_folder}")
-
-    data_files = list(input_folder.glob("*.csv")) + list(input_folder.glob("*.parquet"))
-    if not data_files:
-        print(f"No CSV or Parquet files found in {input_folder}")
-        return
-
-    print(f"Found {len(data_files)} data files to process in {input_folder}")
-
-    output_dir = Path(config.output_base_path) / "sim"
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    for file_path in tqdm(sorted(data_files)):
-        try:
-            data_instance = DataInstance(str(file_path))
-        except Exception:
-            continue
-
-        step_result = run_rules_on_instance(data_instance, config.rule_codes)
-        output_file = output_dir / f"simulation_{file_path.stem}.parquet"
-        step_result.save_to_file(str(output_file))
-
-    print(f"\n{'=' * 60}")
-    print("Batch simulation completed")
-    print(f"{'=' * 60}")
 
 
 def simulation_from_file(file_path: str, rule_codes: list[str]) -> SimulationStepResult:

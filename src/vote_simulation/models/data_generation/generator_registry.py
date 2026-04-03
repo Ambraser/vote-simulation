@@ -11,6 +11,7 @@ Usage examples:
 from __future__ import annotations
 
 from collections.abc import Callable
+from functools import partial
 
 import numpy as np
 from svvamp import (
@@ -70,6 +71,49 @@ def get_generator_builder(code: str) -> GeneratorBuilder:
 def list_generator_codes() -> list[str]:
     """Return sorted list of all registered generator codes."""
     return sorted(_GENERATOR_BUILDERS)
+
+
+def make_generator_builder(
+    generator_factory: Callable[..., Profile],
+    **default_kwargs: object,
+) -> GeneratorBuilder:
+    """Create a public `GeneratorBuilder` from a generator factory.
+
+    This helper is intended for external users who want to register custom
+    generators while reusing the registry's seeding and relabeling logic.
+
+    Args:
+        generator_factory: Callable ``(n_v, n_c, **kw) -> svvamp generator``
+            that, when called, returns an svvamp generator object.
+        **default_kwargs: Default keyword arguments forwarded to the factory.
+
+    Returns:
+        A `GeneratorBuilder` that can be registered in the registry.
+
+    Example::
+
+        from svvamp import GeneratorProfileEuclideanBox
+        builder = make_generator_builder(
+            GeneratorProfileEuclideanBox,
+            box_dimensions=[1.0, 1.0, 1.0],
+        )
+        register_generator("MY_EUCLID_3D", builder)
+    """
+
+    def _builder(
+        n_v: int,
+        n_c: int,
+        *,
+        seed: int = 0,
+        iteration: int = 0,
+        **kw: object,
+    ) -> Profile:
+        _seed(seed, iteration)
+        merged = {**default_kwargs, **kw}
+        gen = generator_factory(n_v=n_v, n_c=n_c, **merged)
+        return _relabel(gen(), n_c)
+
+    return _builder
 
 
 def normalize_between_0_and_1(profile: Profile) -> Profile:
@@ -155,12 +199,24 @@ def _build_euclidean_box(
 ) -> Profile:
     _seed(seed, iteration)
     if box_dimensions is None:
-        box_dimensions = [1.0]
+        box_dimensions = [1.0, 1.0]
     gen = GeneratorProfileEuclideanBox(n_v=n_v, n_c=n_c, box_dimensions=box_dimensions)
     return _relabel(gen(), n_c)
 
 
 register_generator("EUCLID", _build_euclidean_box)
+
+
+# Pre-configured Euclidean Box by dimensionality
+register_generator("EUCLID_1D", make_generator_builder(GeneratorProfileEuclideanBox, box_dimensions=[1.0]))
+register_generator("EUCLID_2D", make_generator_builder(GeneratorProfileEuclideanBox, box_dimensions=[1.0, 1.0]))
+register_generator(
+    "EUCLID_3D", make_generator_builder(GeneratorProfileEuclideanBox, box_dimensions=[1.0, 1.0, 1.0])
+)
+register_generator(
+    "EUCLID_5D",
+    make_generator_builder(GeneratorProfileEuclideanBox, box_dimensions=[1.0, 1.0, 1.0, 1.0, 1.0]),
+)
 
 
 # --- GAUSS: Gaussian Well --------------------------------------------------

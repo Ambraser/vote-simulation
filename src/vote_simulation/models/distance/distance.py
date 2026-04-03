@@ -39,7 +39,7 @@ class BinaryDistance(Distance):
 class JaccardDistance(Distance):
     """Jaccard distance: ``1 - |intersection| / |union|``.
 
-    Ranges continuously from 0 (identical sets) to 1 (disjoint sets).
+    Ranges from 0 (identical sets) to 1 (disjoint sets).
     Returns 0 when both sets are empty.
     """
 
