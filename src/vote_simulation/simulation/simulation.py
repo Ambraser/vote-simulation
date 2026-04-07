@@ -28,7 +28,7 @@ from tqdm import tqdm
 
 from vote_simulation.models.data_generation.data_instance import DataInstance
 from vote_simulation.models.rules import RuleResult, get_rule_builder
-from vote_simulation.models.simulation_result import SimulationSeriesResult, SimulationStepResult
+from vote_simulation.models.simulation_result import ResultConfig, SimulationSeriesResult, SimulationStepResult
 from vote_simulation.simulation.configuration import SimulationConfig, load_simulation_config
 
 # utils
@@ -98,6 +98,7 @@ def obtain_data_instance(
 def run_rules_on_instance(
     data_instance: DataInstance,
     rule_codes: list[str],
+    config: ResultConfig | None = None,
 ) -> SimulationStepResult:
     """
     Apply every rule and collect winners into a ``SimulationStepResult``.
@@ -105,9 +106,13 @@ def run_rules_on_instance(
     Args:
         data_instance: The profile data to run the rules on.
         rule_codes: List of rule codes to apply (e.g. ["RV", "MJ", "AP_T"]).
+        config: Optional :class:`ResultConfig` attached to the step.
     """
     profile = data_instance.profile
-    step = SimulationStepResult(data_source=data_instance.file_path)
+    step = SimulationStepResult(
+        data_source=data_instance.file_path,
+        config=config or ResultConfig(),
+    )
 
     for code in rule_codes:
         normalized = code.strip().upper()
@@ -207,6 +212,9 @@ def simulation_from_config(config_path: str) -> None:
             extra = config.generator_params.get(model, {})
             for n_v in config.voters or []:
                 for n_c in config.candidates or []:
+                    step_cfg = ResultConfig.single(
+                        gen_model=model, n_voters=n_v, n_candidates=n_c,
+                    )
                     for it in range(config.iterations):
                         # 1) Obtain data
                         di = obtain_data_instance(
@@ -220,7 +228,7 @@ def simulation_from_config(config_path: str) -> None:
                         )
 
                         # 2) Apply rules
-                        step = run_rules_on_instance(di, config.rule_codes)
+                        step = run_rules_on_instance(di, config.rule_codes, config=step_cfg)
 
                         # 3) Save result
                         result_path = _sim_dir(config.output_base_path, model, n_v, n_c) / _iter_filename(it)
@@ -232,28 +240,58 @@ def simulation_from_config(config_path: str) -> None:
     print("Full simulation completed.")
 
 def simulation_instance(
-        gen_code:str, 
-        n_v:int,
-        n_c:int, 
-        rule_codes:list[str],
-        n_iteration:int = 1000, 
-        seed:int = 161,
+        gen_code: str,
+        n_v: int,
+        n_c: int,
+        rule_codes: list[str],
+        n_iteration: int = 1000,
+        seed: int = 161,
+        base_path: str = "data",
     ) -> SimulationSeriesResult:
-    """Run the workflow on a single instance
+    """Run the workflow on a single (model, voters, candidates) instance.
+
+    Each step receives a :class:`ResultConfig` so that the series
+    automatically aggregates the simulation context.
+
+    Before running, checks if a cached result already exists at
+    ``<base_path>/results/<config_label>.parquet``.  When found (and the
+    step count matches *n_iteration*), the cached series is returned
+    directly, skipping re-computation.
 
     Args:
-        gen_code (str): Generative model code (list can be found in doc)
-        n_v (int): number of voters 
-        n_c (int): number of candidates
-        rule_codes (list[str]): list of rule_codes to apply
-        n_iteration (int, optional): number of iterations. Defaults to 1000.
-        seed (int, optional): seed for reproductability. Defaults to 161.
+        gen_code: Generative model code (list can be found in doc).
+        n_v: Number of voters.
+        n_c: Number of candidates.
+        rule_codes: List of rule codes to apply.
+        n_iteration: Number of iterations. Defaults to 1000.
+        seed: Seed for reproducibility. Defaults to 161.
+        base_path: Root folder for generated data. Defaults to ``"data"``.
 
     Returns:
-        SimulationSeriesResult: Result of the sim instance
+        SimulationSeriesResult with attached :attr:`config`.
     """
-    print("Running simulation")
-    #total = n_iteration
+    step_config = ResultConfig.single(
+        gen_model=gen_code.strip().upper(),
+        n_voters=n_v,
+        n_candidates=n_c,
+        n_iterations=n_iteration,
+    )
+
+    # --- Cache check ---
+    cache_path = Path(base_path) / "results" / f"{step_config.label}.parquet"
+    if cache_path.is_file():
+        cached = SimulationSeriesResult()
+        cached.load_from_file(str(cache_path))
+        if cached.step_count == n_iteration:
+            print(
+                f"Cache hit: loaded {cached.step_count} steps from {cache_path}"
+            )
+            return cached
+        print(
+            f"Cache stale ({cached.step_count} steps vs {n_iteration} requested) — re-running."
+        )
+
+    print(f"Running simulation: {step_config.description} × {n_iteration} iterations")
     series = SimulationSeriesResult()
     with tqdm(total=n_iteration, desc="Simulating") as pbar:
         for it in range(n_iteration):
@@ -263,12 +301,16 @@ def simulation_instance(
                 n_c=n_c,
                 iteration=it,
                 seed=seed,
-                base_path="data",
+                base_path=base_path,
             )
-            step = run_rules_on_instance(di, rule_codes)
+            step = run_rules_on_instance(di, rule_codes, config=step_config)
             series.add_step(step)
             pbar.update(1)
-    print("Simulation completed.")
+
+    # --- Persist for future cache hits ---
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    series.save_to_file(str(cache_path))
+    print(f"Simulation completed — cached to {cache_path}")
     return series
 
 
