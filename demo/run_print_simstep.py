@@ -91,7 +91,7 @@ if __name__ == "__main__":
     series.save_to_file(save_path)
     print(f"\n  Series saved to {save_path}  ({os.path.getsize(save_path) / 1024:.1f} KB)")
 
-    from vote_simulation.models.simulation_result import SimulationSeriesResult
+    from vote_simulation.models.results.series_result import SimulationSeriesResult
 
     loaded = SimulationSeriesResult()
     loaded.load_from_file(save_path)

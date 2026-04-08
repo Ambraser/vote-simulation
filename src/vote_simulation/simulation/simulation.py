@@ -28,7 +28,7 @@ from tqdm import tqdm
 
 from vote_simulation.models.data_generation.data_instance import DataInstance
 from vote_simulation.models.rules import RuleResult, get_rule_builder
-from vote_simulation.models.simulation_result import ResultConfig, SimulationSeriesResult, SimulationStepResult
+from vote_simulation.models.results.series_result import ResultConfig, SimulationSeriesResult, SimulationStepResult
 from vote_simulation.simulation.configuration import SimulationConfig, load_simulation_config
 
 # utils

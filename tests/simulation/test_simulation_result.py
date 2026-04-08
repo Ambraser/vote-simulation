@@ -4,7 +4,7 @@ import tempfile
 import matplotlib
 import numpy as np
 
-from vote_simulation.models.simulation_result import ResultConfig, SimulationSeriesResult, SimulationStepResult
+from vote_simulation.models.results.series_result import ResultConfig, SimulationSeriesResult, SimulationStepResult
 
 matplotlib.use("Agg")
 
