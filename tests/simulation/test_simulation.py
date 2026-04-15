@@ -1,19 +1,5 @@
-import os
-from svvamp import Profile
-import tempfile
-
 import numpy as np
-import pytest
-
-from vote_simulation.models.results.result_config import ResultConfig
-from vote_simulation.models.results.series_result import SimulationSeriesResult
-from vote_simulation.models.results.step_result import SimulationStepResult
-from vote_simulation.models.results.total_result import (
-    SeriesKey,
-    SimulationTotalResult,
-    _extract_key,
-)
-
+from svvamp import Profile
 
 from vote_simulation.models.rules.registry import get_all_rules_codes
 from vote_simulation.simulation.simulation import simulation_step

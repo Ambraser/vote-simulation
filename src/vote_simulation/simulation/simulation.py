@@ -22,9 +22,9 @@ The directory layout follows::
 
 from __future__ import annotations
 
-from svvamp import Profile
 from pathlib import Path
 
+from svvamp import Profile
 from tqdm import tqdm
 
 from vote_simulation.models.data_generation.data_instance import DataInstance

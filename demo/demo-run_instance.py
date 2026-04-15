@@ -1,6 +1,4 @@
-from svvamp import RuleApproval, RuleKApproval
 
-from vote_simulation.models.rules.registry import make_rule_builder, register_rule
 from vote_simulation.simulation.simulation import simulation_instance
 
 if __name__ == "__main__":
