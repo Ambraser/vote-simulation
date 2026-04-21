@@ -80,6 +80,7 @@ def test_register_rule():
             hasattr(rule_instance, "w_")
             or hasattr(rule_instance, "winner_indices_")
             or hasattr(rule_instance, "winner_")
+            or hasattr(rule_instance, "cowinners_")
         )
 
 

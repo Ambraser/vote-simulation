@@ -8,13 +8,11 @@ from typing import Any, Protocol
 import numpy as np
 from svvamp import (
     Profile,
-    RuleApproval,
     RuleBaldwin,
     RuleBlack,
     RuleBorda,
     RuleBucklin,
     RuleCoombs,
-    RuleCopeland,
     RuleDodgson,
     RuleIRV,
     RuleIteratedBucklin,
@@ -131,6 +129,12 @@ def _compute_cowinners(rule: object) -> list[str]:
 
 
 def _ensure_cowinners(rule: Any) -> RuleResult:
+    # print(rule)
+
+    if hasattr(rule, "ws"):
+        rule.cowinners_ = rule.ws
+        return rule
+
     if hasattr(rule, "cowinners_"):
         return rule
     rule.cowinners_ = _compute_cowinners(rule)
@@ -147,6 +151,24 @@ def _infer_labels(ballots: Sequence[Mapping[str, float]], candidates: set[str] |
     raise ValueError("Unable to infer candidate labels from empty ballots.")
 
 
+def _ut_to_rk_stable(preferences_ut: np.ndarray) -> np.ndarray:
+    """Convert utility matrix to ranking matrix with deterministic tie-breaking.
+
+    Equal utilities are broken by candidate index (lower index ranks higher),
+    matching svvamp's CTB convention and avoiding random orderings.
+
+    Args:
+        preferences_ut: 2d array of shape (n_voters, n_candidates).
+
+    Returns:
+        2d int array of shape (n_voters, n_candidates) where ``result[v, k]``
+        is the candidate at rank ``k`` for voter ``v`` (0 = most preferred).
+    """
+    # np.argsort with kind='stable' preserves original order for equal values,
+    # so lower candidate index wins ties → deterministic, CTB-consistent.
+    return np.argsort(-preferences_ut, axis=1, kind="stable").astype(int)
+
+
 def _ensure_profile(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> Profile:
     if isinstance(profile_or_ballots, Profile):
         return profile_or_ballots
@@ -156,7 +178,8 @@ def _ensure_profile(profile_or_ballots: RuleInput, candidates: set[str] | None =
         [[float(ballot[label]) for label in labels] for ballot in profile_or_ballots],
         dtype=np.float64,
     )
-    return Profile(preferences_ut=matrix, labels_candidates=labels)
+    preferences_rk = _ut_to_rk_stable(matrix)
+    return Profile(preferences_ut=matrix, preferences_rk=preferences_rk, labels_candidates=labels)
 
 
 def _grade_bounds(profile: Profile) -> tuple[float, float]:
@@ -235,12 +258,12 @@ register_rule("BORD", _build_with_rule(lambda profile: RuleBorda()(profile)))
 register_rule("COOM", _build_with_rule(lambda profile: RuleCoombs()(profile)))
 
 
-def _build_l4vd(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> RuleResult:
-    """L4VD rule : code L4VD"""
-    raise NotImplementedError("L4VD rule is not implemented yet")
+# def _build_l4vd(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> RuleResult:
+#    """L4VD rule : code L4VD"""
+#    raise NotImplementedError("L4VD rule is not implemented yet")
 
 
-register_rule("L4VD", _build_l4vd)  # TODO: implement L4VD rule
+# register_rule("L4VD", _build_l4vd)  # TODO: implement L4VD rule
 
 
 def _build_rv(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> RuleResult:
@@ -253,7 +276,7 @@ def _build_rv(profile_or_ballots: RuleInput, candidates: set[str] | None = None)
 register_rule("RV", _build_rv)
 
 
-register_rule("COPE", _build_with_rule(lambda profile: RuleCopeland(cm_option="exact")(profile)))
+# COPE is registered in rule_copeland.py with proper co-winner semantics.
 
 
 def _build_majority_judgment(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> RuleResult:
@@ -278,7 +301,7 @@ def _build_star(profile_or_ballots: RuleInput, candidates: set[str] | None = Non
 register_rule("BUCK_R", _build_with_rule(lambda profile: RuleBucklin()(profile)))
 register_rule("DODG_S", _build_with_rule(lambda profile: RuleDodgson()(profile)))
 register_rule("NANS", _build_with_rule(lambda profile: RuleNanson()(profile)))
-register_rule("AP_T", _build_with_rule(lambda profile: RuleApproval(approval_threshold=0.7)(profile)))
+# AP_T* rules are registered in rule_approval.py with proper co-winner semantics.
 register_rule("BALD", _build_with_rule(lambda profile: RuleBaldwin()(profile)))
 register_rule("BUCK_I", _build_with_rule(lambda profile: RuleIteratedBucklin()(profile)))
 register_rule("HARE", _build_with_rule(lambda profile: RuleIRV()(profile)))
@@ -307,20 +330,4 @@ register_rule("TIDE", _build_with_rule(lambda profile: RuleTideman()(profile)))
 register_rule("WOOD", _build_with_rule(lambda profile: RuleWoodall()(profile)))
 
 
-register_rule("AP_K2", make_rule_builder(lambda profile: RuleKApproval(k=2)(profile)))
-register_rule("AP_K3", make_rule_builder(lambda profile: RuleKApproval(k=3)(profile)))
-register_rule("AP_K4", make_rule_builder(lambda profile: RuleKApproval(k=4)(profile)))
-register_rule("AP_K5", make_rule_builder(lambda profile: RuleKApproval(k=5)(profile)))
-register_rule("AP_K6", make_rule_builder(lambda profile: RuleKApproval(k=6)(profile)))
-register_rule("AP_K7", make_rule_builder(lambda profile: RuleKApproval(k=7)(profile)))
-register_rule("AP_K8", make_rule_builder(lambda profile: RuleKApproval(k=8)(profile)))
-register_rule("AP_K9", make_rule_builder(lambda profile: RuleKApproval(k=9)(profile)))
-register_rule("AP_K10", make_rule_builder(lambda profile: RuleKApproval(k=10)(profile)))
-register_rule("AP_K11", make_rule_builder(lambda profile: RuleKApproval(k=11)(profile)))
-register_rule("AP_K12", make_rule_builder(lambda profile: RuleKApproval(k=12)(profile)))
-
-register_rule("AP_T05", make_rule_builder(lambda profile: RuleApproval(approval_threshold=0.5)(profile)))
-register_rule("AP_T06", make_rule_builder(lambda profile: RuleApproval(approval_threshold=0.6)(profile)))
-register_rule("AP_T07", make_rule_builder(lambda profile: RuleApproval(approval_threshold=0.7)(profile)))
-register_rule("AP_T08", make_rule_builder(lambda profile: RuleApproval(approval_threshold=0.8)(profile)))
-register_rule("AP_T09", make_rule_builder(lambda profile: RuleApproval(approval_threshold=0.9)(profile)))
+# AP_K* and AP_T* rules are registered in their dedicated rule modules.

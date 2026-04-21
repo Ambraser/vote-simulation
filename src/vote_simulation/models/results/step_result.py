@@ -12,6 +12,7 @@ from vote_simulation.models.distance import Distance
 from vote_simulation.models.distance.distance import JaccardDistance
 from vote_simulation.models.results.result_config import ResultConfig
 from vote_simulation.models.results.utils import _plot_heatmap
+from vote_simulation.models.rules.winner_metrics import METRIC_FIELDS, WinnerMetrics
 
 
 @dataclass(slots=True)
@@ -34,6 +35,7 @@ class SimulationStepResult:
         init=False,
         repr=False,
     )
+    _metrics_by_rule: dict[str, WinnerMetrics] = field(default_factory=dict, init=False, repr=False)
 
     def __post_init__(self) -> None:
         """Normalize any pre-populated data and build the matrix once."""
@@ -44,6 +46,7 @@ class SimulationStepResult:
         self._rule_index = {}
         self._winner_sets_by_rule = {}
         self._distance_matrix = np.zeros((0, 0), dtype=np.float32)
+        self._metrics_by_rule = {}
 
         for rule_code, winners in initial_items:
             self.add_method_result(rule_code, winners)
@@ -90,8 +93,55 @@ class SimulationStepResult:
 
         self._append_rule(normalized_code)
 
+    def add_method_result_with_metrics(
+        self,
+        rule_code: str,
+        winners: list[str],
+        metrics: WinnerMetrics,
+    ) -> None:
+        """Add winners *and* pre-computed :class:`WinnerMetrics` for one rule.
+
+        This is the enriched variant of :meth:`add_method_result` used by the
+        simulation engine so that winner-quality metrics can be aggregated
+        across iterations with no extra recomputation.
+
+        Args:
+            rule_code: Voting rule code (e.g. ``"COPE"``).
+            winners: List of co-winner labels.
+            metrics: Pre-computed :class:`WinnerMetrics` for this step.
+        """
+        self.add_method_result(rule_code, winners)
+        normalized_code = rule_code.strip().upper()
+        self._metrics_by_rule[normalized_code] = metrics
+
+    @property
+    def metrics_by_rule(self) -> dict[str, WinnerMetrics]:
+        """Mapping from rule code to its :class:`WinnerMetrics` for this step.
+
+        Only rules registered via :meth:`add_method_result_with_metrics` will
+        appear here.  Rules loaded from disk (without metrics) return an empty
+        dict for their key.
+        """
+        return dict(self._metrics_by_rule)
+
+    @property
+    def metrics_frame(self) -> pd.DataFrame:
+        """Metrics for all rules in this step as a tidy DataFrame.
+
+        Returns a DataFrame indexed by ``rule`` with one column per metric
+        field (see :data:`~vote_simulation.models.rules.winner_metrics.METRIC_FIELDS`).
+        Rules without metrics are omitted.
+        """
+        if not self._metrics_by_rule:
+            return pd.DataFrame(columns=list(METRIC_FIELDS))
+        rows = [
+            {"rule": code, **m.to_dict()}
+            for code, m in self._metrics_by_rule.items()
+        ]
+        return pd.DataFrame(rows).set_index("rule")
+
     # ------------------------------------------------------------------
-    # Metrics
+    # Distance metrics
     # ------------------------------------------------------------------
 
     @property
@@ -118,9 +168,7 @@ class SimulationStepResult:
         i, j = divmod(idx, n)
         return (self._rule_order[i], self._rule_order[j], float(self._distance_matrix[i, j]))
 
-    # ------------------------------------------------------------------
     # Persistence
-    # ------------------------------------------------------------------
 
     def save_to_file(self, file_path: str) -> None:
         """Save the step result to a parquet file.
@@ -173,6 +221,7 @@ class SimulationStepResult:
         self._rule_index = {}
         self._winner_sets_by_rule = {}
         self._distance_matrix = np.zeros((0, 0), dtype=np.float32)
+        self._metrics_by_rule = {}
 
         for rule_code, winners in loaded_winners.items():
             self.add_method_result(str(rule_code), winners)
@@ -215,10 +264,9 @@ class SimulationStepResult:
             r1, r2, d = self.most_distant_rules
             metrics = f"\nMean distance: {self.mean_distance:.4f}\nMost distant: {r1} <-> {r2} ({d:.4f})"
 
+        mat_str = f"\nDistance Matrix:\n{indent(self.format_distance_matrix(), '  ')}" if self._rule_order else ""
         return (
-            f"{header}\n"
-            f"Winners by rule:\n{indent(winners_str, '  ')}{metrics}\n"
-            f"Distance Matrix:\n{indent(self.format_distance_matrix(), '  ')}"
+            f"{header}\nWinners by rule:\n{indent(winners_str, '  ')}{metrics}{mat_str}\n"
         )
 
     def compute_distance_matrix(self) -> np.ndarray:
@@ -230,6 +278,7 @@ class SimulationStepResult:
         self._rule_index = {}
         self._winner_sets_by_rule = {}
         self._distance_matrix = np.zeros((0, 0), dtype=np.float32)
+        self._metrics_by_rule = {}
 
         for rule_code, winners in ordered_items:
             self.add_method_result(rule_code, winners)
@@ -279,9 +328,7 @@ class SimulationStepResult:
             save_path=resolved_save,
         )
 
-    # ------------------------------------------------------------------
     # Path helpers
-    # ------------------------------------------------------------------
 
     def _resolve_save_path(self, path: str, default_filename: str) -> str:
         """If *path* is a directory, append a config-based filename."""

@@ -122,17 +122,19 @@ def run_rules_on_instance(
             builder = get_rule_builder(normalized)
             rule: RuleResult = builder(profile, None)
             winners = rule.cowinners_
-            step.add_method_result(normalized, winners)
-            # print(f"Applied rule '{normalized}': winners = {winners}")
+            try:
+                metrics = rule.compute_metrics()  # type: ignore[attr-defined]
+                step.add_method_result_with_metrics(normalized, winners, metrics)
+            except Exception:
+                # Rule wrappers outside SvvampRuleWrapper don't carry metrics — degrade gracefully.
+                step.add_method_result(normalized, winners)
         except Exception as e:  # noqa: BLE001
             print(f"Error applying rule '{normalized}': {e}")
             step.add_method_result(normalized, [f"ERROR: {e}"])
     return step
 
 
-# ===================================================================
 # Public entry-points
-# ===================================================================
 
 
 def sim(file_path: str, rule_code: str) -> None:
@@ -157,7 +159,7 @@ def sim(file_path: str, rule_code: str) -> None:
 # --------------------------------------------------------------------------
 
 
-def generate_data(config_path: str) -> list[str]:
+def generate_data(config_path: str, show_progress: bool = True) -> list[str]:
     """Generate (or retrieve cached) profiles for every combination defined in the config.
 
     Returns:
@@ -168,7 +170,7 @@ def generate_data(config_path: str) -> list[str]:
 
     paths: list[str] = []
     total = len(config.generative_models) * len(config.voters or []) * len(config.candidates or []) * config.iterations
-    with tqdm(total=total, desc="Generating profiles") as pbar:
+    with tqdm(total=total, desc="Generating profiles", disable=not show_progress) as pbar:
         for model in config.generative_models:
             extra = config.generator_params.get(model, {})
             for n_v in config.voters or []:
@@ -209,7 +211,7 @@ def simulation_step(
     return step_result
 
 
-def simulation_from_config(config_path: str) -> None:
+def simulation_from_config(config_path: str, show_progress: bool = True) -> None:
     """Full pipeline: generate profiles, apply rules, save results.
 
     For every ``(model, n_voters, n_candidates, iteration)`` combination:
@@ -226,7 +228,7 @@ def simulation_from_config(config_path: str) -> None:
     total = len(config.generative_models) * len(config.voters or []) * len(config.candidates or []) * config.iterations
     print(f"Running full simulation: {total} profile(s) × {len(config.rule_codes)} rule(s)")
 
-    with tqdm(total=total, desc="Simulating") as pbar:
+    with tqdm(total=total, desc="Simulating", disable=not show_progress) as pbar:
         for model in config.generative_models:
             extra = config.generator_params.get(model, {})
             for n_v in config.voters or []:
@@ -235,6 +237,7 @@ def simulation_from_config(config_path: str) -> None:
                         gen_model=model,
                         n_voters=n_v,
                         n_candidates=n_c,
+                        rules_codes=config.rule_codes,
                     )
                     for it in range(config.iterations):
                         # 1) Obtain data
@@ -270,16 +273,20 @@ def simulation_instance(
     seed: int = 161,
     base_path: str = "data",
     reload: bool = False,
+    show_progress: bool = True,
 ) -> SimulationSeriesResult:
     """Run the workflow on a single (model, voters, candidates) instance.
 
     Each step receives a :class:`ResultConfig` so that the series
     automatically aggregates the simulation context.
 
-    Before running, checks if a cached result already exists at
-    ``<base_path>/results/<config_label>.parquet``.  When found (and the
-    step count matches *n_iteration*), the cached series is returned
-    directly, skipping re-computation.
+    Cache logic:
+    1. Checks for a cached result at ``<base_path>/results/<base_label>.parquet``
+       (where base_label excludes rules).
+    2. If found with matching step count and same base parameters:
+       - If rules are identical: returns cached series (no recomputation).
+       - If rules differ: loads cached series and applies new rules incrementally.
+    3. If not found or stale: recomputes from scratch.
 
     Args:
         gen_code: Generative model code (list can be found in doc).
@@ -289,32 +296,84 @@ def simulation_instance(
         n_iteration: Number of iterations. Defaults to 1000.
         seed: Seed for reproducibility. Defaults to 161.
         base_path: Root folder for generated data. Defaults to ``"data"``.
-
+        reload: Force re-computation (ignore cache). Defaults to False.
+        show_progress: Whether to display progress bars. Defaults to True.
     Returns:
-        SimulationSeriesResult with attached :attr:`config`.
+        SimulationSeriesResult with attached :attr:`config` including all rules.
     """
-    step_config = ResultConfig.single(
-        gen_model=gen_code.strip().upper(),
+    # Build configs: one without rules (for cache key), one with
+    gen_code = gen_code.strip().upper()
+    base_config = ResultConfig.single(
+        gen_model=gen_code,
         n_voters=n_v,
         n_candidates=n_c,
         n_iterations=n_iteration,
     )
+    full_config = ResultConfig.single(
+        gen_model=gen_code,
+        n_voters=n_v,
+        n_candidates=n_c,
+        n_iterations=n_iteration,
+        rules_codes=[r.strip().upper() for r in rule_codes],
+    )
 
-    # --- Cache check ---
-    cache_path = Path(base_path) / "results" / f"{step_config.label}.parquet"
-    if not reload:
-        cache_path = Path(base_path) / "results" / f"{step_config.label}.parquet"
-        if cache_path.is_file():
-            cached = SimulationSeriesResult()
-            cached.load_from_file(str(cache_path))
-            if cached.step_count == n_iteration:
+    # Normalize rule codes
+    normalized_rules = [r.strip().upper() for r in rule_codes]
+
+    # --- Cache check with partial-load support ---
+    cache_path = Path(base_path) / "results" / f"{base_config.label}.parquet"
+
+    if not reload and cache_path.is_file():
+        cached = SimulationSeriesResult()
+        cached.load_from_file(str(cache_path))
+
+        if cached.step_count != n_iteration:
+            print(f"Cache stale ({cached.step_count} steps vs {n_iteration} requested) — re-running.")
+        elif not cached.config.matches_base(base_config):
+            print("Cache config mismatch — re-running.")
+        else:
+            # Cache is valid for base parameters
+            cached_rules = set(cached.config.rules_codes)
+            requested_rules = set(normalized_rules)
+
+            if cached_rules == requested_rules:
+                # Perfect match! Return cached series
                 print(f"Cache hit: loaded {cached.step_count} steps from {cache_path}")
                 return cached
-            print(f"Cache stale ({cached.step_count} steps vs {n_iteration} requested) — re-running.")
+            elif cached_rules < requested_rules:
+                # Partial match: cached has subset of requested rules
+                new_rules = sorted(requested_rules - cached_rules)
+                print(
+                    f"Partial cache hit: {cached.step_count} steps with rules "
+                    f"{sorted(cached_rules)}. Adding {new_rules}..."
+                )
+                cached.add_rules_to_steps(new_rules)
+                # Update config to match requested rules
+                cached.config = ResultConfig.single(
+                    gen_model=gen_code,
+                    n_voters=n_v,
+                    n_candidates=n_c,
+                    n_iterations=n_iteration,
+                    rules_codes=normalized_rules,
+                )
+                # Save updated series with new rules
+                cache_path.parent.mkdir(parents=True, exist_ok=True)
+                cached.save_to_file(str(cache_path))
+                print(f"Updated cache saved to {cache_path}")
+                return cached
+            else:
+                # Cached has rules we don't want (or extra rules not matching scenarios)
+                print(
+                    f"Cache rule mismatch: cached has {sorted(cached_rules)}, "
+                    f"but requested {sorted(requested_rules)} — re-running."
+                )
 
-    print(f"Running simulation: {step_config.description} × {n_iteration} iterations")
+    # --- No valid cache: compute from scratch ---
+    print(
+        f"Running simulation: {base_config.description} × {n_iteration} iterations with {len(normalized_rules)} rules"
+    )
     series = SimulationSeriesResult()
-    with tqdm(total=n_iteration, desc="Simulating") as pbar:
+    with tqdm(total=n_iteration, desc="Simulating", disable=not show_progress) as pbar:
         for it in range(n_iteration):
             di = obtain_data_instance(
                 model=gen_code,
@@ -324,9 +383,12 @@ def simulation_instance(
                 seed=seed,
                 base_path=base_path,
             )
-            step = run_rules_on_instance(di, rule_codes, config=step_config)
+            step = run_rules_on_instance(di, normalized_rules, config=base_config)
             series.add_step(step)
             pbar.update(1)
+
+    # Set the full config on the series (including rules)
+    series.config = full_config
 
     # --- Persist for future cache hits ---
     cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -367,6 +429,7 @@ def simulation_series_from_config(config_path: str, reload: bool = False) -> Sim
                         seed=config.seed,
                         base_path=config.output_base_path,
                         reload=reload,
+                        show_progress=False,  # inner progress is handled by simulation_instance
                     )
                     total_result.add_series(series)
                     pbar.update(1)

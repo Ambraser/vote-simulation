@@ -6,9 +6,29 @@ output_base_path = "../data/"
 # Available: UNI, IC, IANC, EUCLID, GAUSS, LADDER, SPHEROID, PERTURB, UNANIMOUS, UFR, VMF_HC, VMF_HS
 generative_models = ["VMF_HC"]
 
-# Voting methods to execute
-rule_codes = ["AP_T", "AP_K", "BALD", "BLAC", "BORD", "CAIR", "CSUM", "CVIR", "BUCK_I", "BUCK_R", "COOM", "COPE", "DODG_C", "DODG_S", "EXHB", "HARE", "IRV", "IRVA", "IRVD", "ICRV", "KIMR", "MJ", "MMAX", "NANS", "PLU1", "PLU2", "RPAR", "RV", "SCHU", "SIRV", "SPCY", "STAR", "TIDE", "VETO", "WOOD", "YOUN"]
-#rule_codes = ["AP_T", "AP_K", "BALD", "BLAC", "BORD", "CAIR", "CSUM", "CVIR", "BUCK_I", "BUCK_R", "COOM", "COPE", "DODG_C", "DODG_S", "EXHB", "HARE", "IRV", "IRVA", "IRVD", "ICRV", "KEME", "KIMR", "L4VD", "MJ", "MMAX", "NANS", "PLU1", "PLU2", "RPAR", "RV", "SCHU", "SIRV", "SLAT", "SPCY", "STAR", "TIDE", "VETO", "WOOD", "YOUN"]
+# -------------------------------------------------------------------
+# ACTIVE RULE SET - Choose one set below by uncommenting
+# -------------------------------------------------------------------
+
+# *** QUICK TEST SET (15 rules) ***
+rule_codes = [
+    "PLU1", "HARE", "BORD", "COOM", "BALD", "COPE", "SCHU", "MMAX",
+    "PV-IR", "PV-BALD", "PV-COMB", "PV-NANS", "PV-CIRV", "PV-DAUN", "PV-BMF"
+]
+
+# *** UNCOMMENT BELOW FOR OTHER SETS ***
+
+# SVVAMP (55 rules)
+# rule_codes = [
+#     "AP_K", "AP_K10", "AP_K11", "AP_K12", "AP_K2", "AP_K3", "AP_K4", "AP_K5",
+#     "AP_K6", "AP_K7", "AP_K8", "AP_K9", "AP_T", "AP_T05", "AP_T06", "AP_T07",
+#     "AP_T08", "AP_T09", "BALD", "BLAC", "BORD", "BUCK_I", "BUCK_R", "CAIR",
+#     "COOM", "COPE", "CSUM", "CVIR", "DODG_C", "DODG_S", "EXHB", "HARE", "ICRV",
+#     "IRV", "IRVA", "IRVD", "KEME", "KIMR", "L4VD", "MJ", "MMAX", "NANS", "PLU1",
+#     "PLU2", "RPAR", "RV", "SCHU", "SIRV", "SLAT", "SPCY", "STAR", "TIDE", "VETO",
+#     "WOOD", "YOUN"
+# ]
+
 
 # Numbers of candidates
 candidates = [3, 14]

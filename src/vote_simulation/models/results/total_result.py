@@ -228,6 +228,97 @@ class SimulationTotalResult:
             )
         return pd.DataFrame(rows)
 
+    def metrics_comparison_frame(
+        self,
+        metric_field: str,
+        rule_code: str,
+        stat: str = "mean",
+    ) -> pd.DataFrame:
+        """Cross-parameter table of one winner metric for one rule.
+
+        Builds a long-form :class:`~pandas.DataFrame` with one row per
+        ``(gen_model, n_voters, n_candidates)`` entry, containing the
+        requested aggregated statistic for ``rule_code``.
+
+        Parameters
+        ----------
+        metric_field:
+            One of the fields in
+            :data:`~vote_simulation.models.rules.winner_metrics.METRIC_FIELDS`
+            (e.g. ``"social_acceptability"``, ``"rank_mean"``).
+        rule_code:
+            The normalised rule code to extract (e.g. ``"COPE"``).
+        stat:
+            Which statistic column to read from
+            :attr:`~vote_simulation.models.results.series_result.SimulationSeriesResult.metrics_summary_frame`:
+            ``"mean"`` (default) or ``"std"``.
+
+        Returns
+        -------
+        pd.DataFrame
+            Columns: ``gen_model``, ``n_voters``, ``n_candidates``,
+            ``<metric_field>_<stat>``.  Series without the requested rule's
+            metrics are omitted.
+        """
+        col = f"{metric_field}_{stat}"
+        rule_up = rule_code.strip().upper()
+        rows: list[dict[str, Any]] = []
+        for key in sorted(self._entries):
+            series = self._entries[key]
+            frame = series.metrics_summary_frame
+            if frame.empty or rule_up not in frame.index or col not in frame.columns:
+                continue
+            rows.append(
+                {
+                    "gen_model": key.gen_model,
+                    "n_voters": key.n_voters,
+                    "n_candidates": key.n_candidates,
+                    col: float(frame.loc[rule_up, col]),
+                }
+            )
+        return pd.DataFrame(rows)
+
+    def metrics_pivot(
+        self,
+        metric_field: str,
+        rule_code: str,
+        row_param: str = "n_voters",
+        col_param: str = "n_candidates",
+        stat: str = "mean",
+    ) -> tuple[pd.DataFrame, str]:
+        """Pivot :meth:`metrics_comparison_frame` into a 2D matrix.
+
+        Analogous to :meth:`metric_matrix` but for winner metrics instead of
+        rule-distance metrics.
+
+        Parameters
+        ----------
+        metric_field:
+            Metric field name (see :data:`~vote_simulation.models.rules.winner_metrics.METRIC_FIELDS`).
+        rule_code:
+            The rule to inspect.
+        row_param / col_param:
+            Which of the three key parameters (``gen_model``, ``n_voters``,
+            ``n_candidates``) to use as row/column axes.
+        stat:
+            ``"mean"`` or ``"std"``.
+
+        Returns
+        -------
+        (pivot_df, fixed_description)
+            The pivot DataFrame and a description of the fixed third parameter.
+        """
+        self._validate_axis_params(row_param, col_param)
+        col = f"{metric_field}_{stat}"
+        df = self.metrics_comparison_frame(metric_field, rule_code, stat=stat)
+        if df.empty:
+            return pd.DataFrame(), ""
+        third = next(iter(_PARAM_NAMES - {row_param, col_param}))
+        third_vals = {str(v) for v in df[third].unique()}
+        fixed_desc = f"{third}={', '.join(sorted(third_vals))}" if third_vals else ""
+        pivot = df.pivot_table(index=row_param, columns=col_param, values=col, aggfunc="mean")
+        return pivot, fixed_desc
+
     def metric_matrix(
         self,
         row_param: str = "n_voters",

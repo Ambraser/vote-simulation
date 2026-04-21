@@ -2,6 +2,8 @@
 
 All rules expose a `cowinners_` attribute. They are integrated via the `rule_codes` key in `config/simulation.toml`.
 
+## SVVAMP Rules
+
 | code | rule | doc SVVAMP | status |
 |---|---|---|---|
 | AP_T | Approval (threshold 0.7) | [rule_approval](https://francois-durand.github.io/svvamp/reference/rules/rule_approval.html) | Tested & validated |
@@ -43,7 +45,6 @@ All rules expose a `cowinners_` attribute. They are integrated via the `rule_cod
 | VETO | Veto (Anti-plurality) | [rule_veto](https://francois-durand.github.io/svvamp/reference/rules/rule_veto.html) | Tested & validated |
 | WOOD | Woodall | [rule_woodall](https://francois-durand.github.io/svvamp/reference/rules/rule_woodall.html) | Tested & validated |
 | YOUN | Young | [rule_young](https://francois-durand.github.io/svvamp/reference/rules/rule_young.html) | Tested & validated |
-
 
 ## How to add a rule
 

@@ -18,6 +18,15 @@ def test_wrong_file_format():
 def test_ties_cases():
     """test if ties are properly handled"""
 
+    # Each candidate gets exactly one voter preferring them with utility 1;
+    # the other two have utility 0 (tied).  Total utility per candidate = 1,
+    # so every rule sees an exact 3-way tie and must return all three
+    # candidates as co-winners.
+    #
+    # Copeland co-winners are computed from preferences_ut directly (not from
+    # svvamp's rank-based scores_) so this profile produces the correct 3-way
+    # tie for all rules.
+
     ballots = np.array(
         [
             [1, 0, 0],

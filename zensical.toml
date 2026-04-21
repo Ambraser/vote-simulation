@@ -8,6 +8,7 @@ nav = [
   { "Home" = "index.md" },
   { "Getting started" = "getting_start.md"},
   { "References" = [
+    { "Result config" = "models/data_config.md"},
     { "Rule catalog" = "rules.md" },
     { "Data generation" = "data_generation.md" },
     { "Data instance" = "models/data_instance.md" },

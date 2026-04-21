@@ -1,4 +1,3 @@
-
 from vote_simulation.simulation.simulation import simulation_instance
 
 if __name__ == "__main__":

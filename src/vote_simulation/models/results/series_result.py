@@ -12,6 +12,7 @@ import pandas as pd
 from vote_simulation.models.results.result_config import ResultConfig
 from vote_simulation.models.results.step_result import SimulationStepResult
 from vote_simulation.models.results.utils import MdsProjection, _plot_heatmap
+from vote_simulation.models.rules.winner_metrics import METRIC_FIELDS, metrics_to_array
 
 
 @dataclass(slots=True)
@@ -37,6 +38,10 @@ class SimulationSeriesResult:
     )
     _iteration_count: int = field(default=0, init=False, repr=False)
     _config: ResultConfig = field(default_factory=ResultConfig, init=False, repr=False)
+    # Per-rule metric accumulators (sum and sum-of-squares for online mean/std)
+    _metrics_sum: dict[str, np.ndarray] = field(default_factory=dict, init=False, repr=False)
+    _metrics_sum_sq: dict[str, np.ndarray] = field(default_factory=dict, init=False, repr=False)
+    _metrics_count: dict[str, int] = field(default_factory=dict, init=False, repr=False)
 
     # ------------------------------------------------------------------
     # Public API
@@ -49,6 +54,77 @@ class SimulationSeriesResult:
         self._accumulate_step(step_result)
         if step_result.config:
             self._config = self._config.merge(step_result.config)
+
+    def add_rules_to_steps(self, new_rule_codes: list[str]) -> None:
+        """Apply additional rules to all existing steps and update the series.
+
+        Does not re-run existing rules, only computes distances for new rules.
+        Rebuilds the accumulated distance matrix with all rules (old + new).
+
+        Args:
+            new_rule_codes: List of additional rule codes to apply to each step.
+
+        Raises:
+            ImportError: If ``vote_simulation.models.rules`` is not available.
+        """
+        if not new_rule_codes:
+            return
+
+        from vote_simulation.models.data_generation.data_instance import DataInstance
+        from vote_simulation.models.rules import get_rule_builder
+
+        # Apply new rules to each step
+        for step in self.steps:
+            if not step.data_source:
+                print("Warning: Step without data_source, skipping rule application")
+                continue
+
+            try:
+                di = DataInstance(step.data_source)
+                profile = di.profile
+
+                for code in new_rule_codes:
+                    normalized = code.strip().upper()
+                    if normalized in step.winners_by_rule:
+                        continue  # Skip if rule already exists
+
+                    try:
+                        builder = get_rule_builder(normalized)
+                        rule = builder(profile, None)
+                        winners = rule.cowinners_
+                        try:
+                            metrics = rule.compute_metrics()
+                            step.add_method_result_with_metrics(normalized, winners, metrics)
+                        except Exception:
+                            step.add_method_result(normalized, winners)
+                    except Exception as e:
+                        print(f"Error applying rule '{normalized}' to step: {e}")
+                        step.add_method_result(normalized, [f"ERROR: {e}"])
+            except Exception as e:
+                print(f"Error loading data source '{step.data_source}': {e}")
+
+        # Rebuild the aggregated distance matrix and metric accumulators
+        self._rule_order = []
+        self._rule_index = {}
+        self._matrix_sum = np.zeros((0, 0), dtype=np.float64)
+        self._iteration_count = 0
+        self._metrics_sum = {}
+        self._metrics_sum_sq = {}
+        self._metrics_count = {}
+
+        for step in self.steps:
+            self._accumulate_step(step)
+
+        # Update config to include new rules
+        if new_rule_codes:
+            new_rules = frozenset(c.strip().upper() for c in new_rule_codes)
+            self._config = ResultConfig(
+                gen_models=self._config.gen_models,
+                n_voters=self._config.n_voters,
+                n_candidates=self._config.n_candidates,
+                rules_codes=self._config.rules_codes | new_rules,
+                n_iterations=self._config.n_iterations,
+            )
 
     @property
     def config(self) -> ResultConfig:
@@ -82,8 +158,48 @@ class SimulationSeriesResult:
         idx = pd.Index(self._rule_order)
         return pd.DataFrame(matrix, index=idx, columns=idx)
 
+    @property
+    def metrics_summary_frame(self) -> pd.DataFrame:
+        """Per-rule winner-metric statistics aggregated across all iterations.
+
+        Returns a :class:`~pandas.DataFrame` indexed by ``rule`` with two
+        columns per metric field — one for the mean and one for the standard
+        deviation across all accumulated steps:
+
+        ``<field>_mean``, ``<field>_std``  for each field in
+        :data:`~vote_simulation.models.rules.winner_metrics.METRIC_FIELDS`.
+
+        Rules for which no metrics were recorded (e.g. loaded from a parquet
+        file without metrics) are omitted from the frame.
+
+        An empty DataFrame is returned when no metrics have been accumulated.
+        """
+        if not self._metrics_sum:
+            col_names = [f"{f}_{s}" for f in METRIC_FIELDS for s in ("mean", "std")]
+            return pd.DataFrame(columns=col_names)
+
+        rows = []
+        for rule in self._rule_order:
+            if rule not in self._metrics_sum:
+                continue
+            count = self._metrics_count[rule]
+            mean_arr = self._metrics_sum[rule] / count
+            mean_sq_arr = self._metrics_sum_sq[rule] / count
+            # population std — safe against floating precision below zero
+            std_arr = np.sqrt(np.maximum(0.0, mean_sq_arr - mean_arr**2))
+            row: dict[str, object] = {"rule": rule}
+            for i, field_name in enumerate(METRIC_FIELDS):
+                row[f"{field_name}_mean"] = float(mean_arr[i])
+                row[f"{field_name}_std"] = float(std_arr[i])
+            rows.append(row)
+
+        if not rows:
+            col_names = [f"{f}_{s}" for f in METRIC_FIELDS for s in ("mean", "std")]
+            return pd.DataFrame(columns=col_names)
+        return pd.DataFrame(rows).set_index("rule")
+
     # ------------------------------------------------------------------
-    # Metrics
+    # Distance metrics
     # ------------------------------------------------------------------
 
     @property
@@ -484,6 +600,9 @@ class SimulationSeriesResult:
         self._matrix_sum = np.zeros((0, 0), dtype=np.float64)
         self._iteration_count = 0
         self._config = ResultConfig()
+        self._metrics_sum = {}
+        self._metrics_sum_sq = {}
+        self._metrics_count = {}
 
         has_config_cols = {"GenModel", "NVoters", "NCandidates"}.issubset(df.columns)
 
@@ -530,7 +649,7 @@ class SimulationSeriesResult:
     # ------------------------------------------------------------------
 
     def _accumulate_step(self, step: SimulationStepResult) -> None:
-        """Add one step's distance matrix to the running sum."""
+        """Add one step's distance matrix and winner metrics to the running sums."""
 
         step_rules = step._rule_order
         if not step_rules:
@@ -548,3 +667,15 @@ class SimulationSeriesResult:
         perm = np.array([self._rule_index[r] for r in step_rules], dtype=np.intp)
         self._matrix_sum[np.ix_(perm, perm)] += step._distance_matrix
         self._iteration_count += 1
+
+        # Accumulate winner metrics (only for rules that carry metrics)
+        n_fields = len(METRIC_FIELDS)
+        for rule_code, wm in step._metrics_by_rule.items():
+            arr = metrics_to_array(wm)
+            if rule_code not in self._metrics_sum:
+                self._metrics_sum[rule_code] = np.zeros(n_fields, dtype=np.float64)
+                self._metrics_sum_sq[rule_code] = np.zeros(n_fields, dtype=np.float64)
+                self._metrics_count[rule_code] = 0
+            self._metrics_sum[rule_code] += arr
+            self._metrics_sum_sq[rule_code] += arr * arr
+            self._metrics_count[rule_code] += 1
