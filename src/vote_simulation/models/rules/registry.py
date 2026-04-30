@@ -8,43 +8,18 @@ from typing import Any, Protocol
 import numpy as np
 from svvamp import (
     Profile,
-    RuleBaldwin,
-    RuleBlack,
-    RuleBorda,
-    RuleBucklin,
-    RuleCoombs,
     RuleDodgson,
-    RuleIRV,
-    RuleIteratedBucklin,
-    RuleKApproval,
-    RuleMajorityJudgment,
-    RuleMaximin,
-    RuleNanson,
-    RulePlurality,
-    RuleRangeVoting,
-    RuleSchulze,
-    RuleTwoRound,
 )
 from svvamp.rules.rule_condorcet_abs_irv import RuleCondorcetAbsIRV
 from svvamp.rules.rule_condorcet_sum_defeats import RuleCondorcetSumDefeats
 from svvamp.rules.rule_condorcet_vtb_irv import RuleCondorcetVtbIRV
 from svvamp.rules.rule_exhaustive_ballot import RuleExhaustiveBallot
-from svvamp.rules.rule_icrv import RuleICRV
 from svvamp.rules.rule_irv_average import RuleIRVAverage
 from svvamp.rules.rule_irv_duels import RuleIRVDuels
-from svvamp.rules.rule_kemeny import RuleKemeny
-from svvamp.rules.rule_kim_roush import RuleKimRoush
 from svvamp.rules.rule_ranked_pairs import RuleRankedPairs
-from svvamp.rules.rule_slater import RuleSlater
 from svvamp.rules.rule_smith_irv import RuleSmithIRV
-from svvamp.rules.rule_split_cycle import RuleSplitCycle
-from svvamp.rules.rule_star import RuleSTAR
-from svvamp.rules.rule_tideman import RuleTideman
-from svvamp.rules.rule_veto import RuleVeto
-from svvamp.rules.rule_woodall import RuleWoodall
-from svvamp.rules.rule_young import RuleYoung
 
-RuleInput = Profile | Sequence[Mapping[str, float]]
+RuleInput = Profile | Sequence[Mapping[str, float]] | Sequence[Sequence[float]] | np.ndarray
 
 
 class RuleResult(Protocol):
@@ -86,6 +61,7 @@ def _winner_index(rule: object) -> int | None:
 
 
 def _compute_cowinners(rule: object) -> list[str]:
+
     profile = getattr(rule, "profile_", None)
     weak_winners = getattr(profile, "weak_condorcet_winners", None)
     n_candidates = getattr(profile, "n_c", None)
@@ -141,32 +117,57 @@ def _ensure_cowinners(rule: Any) -> RuleResult:
     return rule
 
 
-def _infer_labels(ballots: Sequence[Mapping[str, float]], candidates: set[str] | None) -> list[str]:
-    if ballots:
-        first_ballot = ballots[0]
-        if first_ballot:
-            return [str(label) for label in first_ballot.keys()]
+def _is_mapping_ballot(ballot: object) -> bool:
+    return isinstance(ballot, Mapping)
+
+
+def _default_labels(n_candidates: int) -> list[str]:
+    return [f"Candidate {index + 1}" for index in range(n_candidates)]
+
+
+def _infer_labels(ballots: RuleInput, candidates: set[str] | None) -> list[str]:
     if candidates:
         return sorted(str(candidate) for candidate in candidates)
-    raise ValueError("Unable to infer candidate labels from empty ballots.")
+
+    if isinstance(ballots, np.ndarray):
+        if ballots.ndim != 2:
+            raise ValueError("Ballot matrix must be a 2d array.")
+        return _default_labels(ballots.shape[1])
+
+    if len(ballots) == 0:
+        raise ValueError("Unable to infer candidate labels from empty ballots.")
+
+    first_ballot = ballots[0]
+    if _is_mapping_ballot(first_ballot):
+        if first_ballot:
+            return [str(label) for label in first_ballot.keys()]
+        raise ValueError("Unable to infer candidate labels from empty ballot mapping.")
+
+    if isinstance(first_ballot, Sequence) and not isinstance(first_ballot, str | bytes):
+        return _default_labels(len(first_ballot))
+
+    raise TypeError("Ballots must be mappings of candidate labels to scores or 2d numeric sequences.")
 
 
 def _ut_to_rk_stable(preferences_ut: np.ndarray) -> np.ndarray:
-    """Convert utility matrix to ranking matrix with deterministic tie-breaking.
+    """Convert utilities to ``preferences_rk`` as expected by svvamp.
 
-    Equal utilities are broken by candidate index (lower index ranks higher),
-    matching svvamp's CTB convention and avoiding random orderings.
+    ``preferences_rk[v, k]`` is the candidate at rank ``k`` for voter ``v``
+    (0 = most preferred). This is a permutation matrix (ranking), not a rank
+    matrix. Equal utilities are broken by candidate index (stable sort), which
+    is deterministic and consistent with svvamp's CTB convention.
 
     Args:
-        preferences_ut: 2d array of shape (n_voters, n_candidates).
+        preferences_ut: 2d array of shape ``(n_voters, n_candidates)``.
 
     Returns:
-        2d int array of shape (n_voters, n_candidates) where ``result[v, k]``
-        is the candidate at rank ``k`` for voter ``v`` (0 = most preferred).
+        2d int array of shape ``(n_voters, n_candidates)`` where
+        ``result[v, k]`` is the candidate ranked ``k``-th by voter ``v``.
     """
-    # np.argsort with kind='stable' preserves original order for equal values,
-    # so lower candidate index wins ties → deterministic, CTB-consistent.
-    return np.argsort(-preferences_ut, axis=1, kind="stable").astype(int)
+    preferences_ut = np.asarray(preferences_ut, dtype=np.float64)
+    if preferences_ut.ndim != 2:
+        raise ValueError("preferences_ut must be a 2d array.")
+    return np.argsort(-preferences_ut, axis=1, kind="stable")
 
 
 def _ensure_profile(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> Profile:
@@ -174,10 +175,23 @@ def _ensure_profile(profile_or_ballots: RuleInput, candidates: set[str] | None =
         return profile_or_ballots
 
     labels = _infer_labels(profile_or_ballots, candidates)
-    matrix = np.asarray(
-        [[float(ballot[label]) for label in labels] for ballot in profile_or_ballots],
-        dtype=np.float64,
-    )
+    if isinstance(profile_or_ballots, np.ndarray):
+        matrix = np.asarray(profile_or_ballots, dtype=np.float64)
+    elif len(profile_or_ballots) > 0 and _is_mapping_ballot(profile_or_ballots[0]):
+        matrix = np.asarray(
+            [[float(ballot[label]) for label in labels] for ballot in profile_or_ballots],
+            dtype=np.float64,
+        )
+    else:
+        matrix = np.asarray(profile_or_ballots, dtype=np.float64)
+
+    if matrix.ndim != 2:
+        raise ValueError("preferences_ut must be a 2d array.")
+    if matrix.shape[1] != len(labels):
+        raise ValueError(
+            f"Candidate label count ({len(labels)}) does not match ballot width ({matrix.shape[1]})."
+        )
+
     preferences_rk = _ut_to_rk_stable(matrix)
     return Profile(preferences_ut=matrix, preferences_rk=preferences_rk, labels_candidates=labels)
 
@@ -240,22 +254,18 @@ def get_rule_builder(code: str) -> RuleBuilder:
         raise ValueError(f"Unknown rule code: '{code}'. Available codes: {available}") from error
 
 
-register_rule("PLU1", _build_with_rule(lambda profile: RulePlurality()(profile)))
+# PLU1 is registered in rule_plurality.py with proper co-winner semantics.
+# PLU2 is registered in rule_two_round.py with proper co-winner semantics.
 
 
-register_rule("PLU2", _build_with_rule(lambda profile: RuleTwoRound()(profile)))
-
-
-register_rule("BLAC", _build_with_rule(lambda profile: RuleBlack()(profile)))
-
-
-register_rule("BORD", _build_with_rule(lambda profile: RuleBorda()(profile)))
+# BLAC is registered in rule_black.py with proper co-winner semantics.
+# BORD is registered in rule_borda.py with proper co-winner semantics.
 
 
 # register_rule("COND", _build_with_rule(lambda profile: RuleCondorcet()(profile)))
 
 
-register_rule("COOM", _build_with_rule(lambda profile: RuleCoombs()(profile)))
+# COOM is registered in rule_coombs.py with proper co-winner semantics.
 
 
 # def _build_l4vd(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> RuleResult:
@@ -266,68 +276,47 @@ register_rule("COOM", _build_with_rule(lambda profile: RuleCoombs()(profile)))
 # register_rule("L4VD", _build_l4vd)  # TODO: implement L4VD rule
 
 
-def _build_rv(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> RuleResult:
-    """Range voting rule : code RV"""
-    profile = _ensure_profile(profile_or_ballots, candidates)
-    min_grade, max_grade = _grade_bounds(profile)
-    return _ensure_cowinners(RuleRangeVoting(min_grade=min_grade, max_grade=max_grade, rescale_grades=False)(profile))
-
-
-register_rule("RV", _build_rv)
+# RV is registered in rule_range_voting.py with proper co-winner semantics.
 
 
 # COPE is registered in rule_copeland.py with proper co-winner semantics.
 
 
-def _build_majority_judgment(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> RuleResult:
-    """Majority judgment rule : code MJ"""
-    profile = _ensure_profile(profile_or_ballots, candidates)
-    min_grade, max_grade = _grade_bounds(profile)
-    return _ensure_cowinners(
-        RuleMajorityJudgment(min_grade=min_grade, max_grade=max_grade, rescale_grades=False)(profile)
-    )
+# MJ and MJ_RESCALE are registered in rule_majority_judgment.py with proper co-winner semantics.
 
 
-register_rule("MJ", _build_majority_judgment)
+# STAR is registered in rule_star.py with proper co-winner semantics.
 
 
-def _build_star(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> RuleResult:
-    """STAR rule with grade bounds inferred from profile."""
-    profile = _ensure_profile(profile_or_ballots, candidates)
-    min_grade, max_grade = _grade_bounds(profile)
-    return _ensure_cowinners(RuleSTAR(min_grade=min_grade, max_grade=max_grade, rescale_grades=False)(profile))
-
-
-register_rule("BUCK_R", _build_with_rule(lambda profile: RuleBucklin()(profile)))
+# BUCK_R is registered in rule_bucklin.py with proper co-winner semantics.
 register_rule("DODG_S", _build_with_rule(lambda profile: RuleDodgson()(profile)))
-register_rule("NANS", _build_with_rule(lambda profile: RuleNanson()(profile)))
+# NANS is registered in rule_nanson.py with proper co-winner semantics.
 # AP_T* rules are registered in rule_approval.py with proper co-winner semantics.
-register_rule("BALD", _build_with_rule(lambda profile: RuleBaldwin()(profile)))
-register_rule("BUCK_I", _build_with_rule(lambda profile: RuleIteratedBucklin()(profile)))
-register_rule("HARE", _build_with_rule(lambda profile: RuleIRV()(profile)))
-register_rule("IRV", _build_with_rule(lambda profile: RuleIRV()(profile)))
-register_rule("MMAX", _build_with_rule(lambda profile: RuleMaximin()(profile)))
-register_rule("SCHU", _build_with_rule(lambda profile: RuleSchulze()(profile)))
-register_rule("AP_K", _build_with_rule(lambda profile: RuleKApproval(k=2)(profile)))
-register_rule("STAR", _build_star)
+# BALD is registered in rule_baldwin.py with proper co-winner semantics.
+# BUCK_I is registered in rule_iterated_bucklin.py with proper co-winner semantics.
+# HARE and IRV are registered in rule_irv.py with proper co-winner semantics.
+# MMAX is registered in rule_maximin.py with proper co-winner semantics.
+# SCHU is registered in rule_schulze.py with proper co-winner semantics.
+# AP_K and AP_K2..AP_K12 are registered in rule_k_approval.py with proper co-winner semantics.
+# STAR is registered in rule_star.py with proper co-winner semantics.
 register_rule("DODG_C", _build_with_rule(lambda profile: RuleDodgson()(profile)))
 register_rule("CSUM", _build_with_rule(lambda profile: RuleCondorcetSumDefeats()(profile)))
 register_rule("IRVD", _build_with_rule(lambda profile: RuleIRVDuels()(profile)))
-register_rule("KEME", _build_with_rule(lambda profile: RuleKemeny(winner_option="exact")(profile)))
-register_rule("KIMR", _build_with_rule(lambda profile: RuleKimRoush()(profile)))
+# KEME is registered in rule_kemeny.py with proper co-winner semantics.
+# KIMR is registered in rule_kim_roush.py with proper co-winner semantics.
 register_rule("RPAR", _build_with_rule(lambda profile: RuleRankedPairs()(profile)))
-register_rule("SLAT", _build_with_rule(lambda profile: RuleSlater(winner_option="exact")(profile)))
-register_rule("SPCY", _build_with_rule(lambda profile: RuleSplitCycle()(profile)))
-register_rule("VETO", _build_with_rule(lambda profile: RuleVeto()(profile)))
-register_rule("YOUN", _build_with_rule(lambda profile: RuleYoung()(profile)))
+# SLAT is registered in rule_slater.py with proper co-winner semantics.
+# SPCY is registered in rule_split_cycle.py with proper co-winner semantics.
+# VETO is registered in rule_veto.py with proper co-winner semantics.
+# YOUN is registered in rule_young.py with proper co-winner semantics.
 register_rule("EXHB", _build_with_rule(lambda profile: RuleExhaustiveBallot()(profile)))
 register_rule("CAIR", _build_with_rule(lambda profile: RuleCondorcetAbsIRV()(profile)))
 register_rule("CVIR", _build_with_rule(lambda profile: RuleCondorcetVtbIRV()(profile)))
-register_rule("ICRV", _build_with_rule(lambda profile: RuleICRV()(profile)))
+# ICRV is registered in rule_icrv.py with proper co-winner semantics.
 register_rule("IRVA", _build_with_rule(lambda profile: RuleIRVAverage()(profile)))
 register_rule("SIRV", _build_with_rule(lambda profile: RuleSmithIRV()(profile)))
-register_rule("TIDE", _build_with_rule(lambda profile: RuleTideman()(profile)))
-register_rule("WOOD", _build_with_rule(lambda profile: RuleWoodall()(profile)))
+# TIDE is registered in rule_tideman.py with proper co-winner semantics.
+# WOOD is registered in rule_woodall.py with proper co-winner semantics.
 
 
 # AP_K* and AP_T* rules are registered in their dedicated rule modules.

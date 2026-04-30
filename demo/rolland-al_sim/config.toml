@@ -4,14 +4,14 @@ output_base_path = "../data/"
 
 # Data generation models
 # Available: UNI, IC, IANC, EUCLID, GAUSS, LADDER, SPHEROID, PERTURB, UNANIMOUS, UFR, VMF_HC, VMF_HS
-# generative_models = ["IC", "EUCLID_1D", "EUCLID_2D", "EUCLID_3D", "EUCLID_5D"]
 generative_models = ["UNI", "EUCLID_1D", "EUCLID_2D", "EUCLID_3D", "EUCLID_5D", "IC", "UNANIMOUS"]
+generative_models = ["UNI"]
+
 
 # Voting methods to execute
-# rule_codes = ["RV","MJ","AP_K2","AP_T05","AP_T08","BUCK_I","BUCK_R","BORD","STAR","BLAC","SCHU","COPE","MMAX","NANS","COOM","HARE","PLU2","PLU1"]
-# rule_codes = ["AP_K2", "AP_K3", "AP_K4", "AP_K5", "AP_K6", "AP_K7", "AP_K8", "AP_K9", "AP_T05", "MJ", "AP_T06", "AP_T07", "AP_T08", "AP_T09","BUCK_I","BUCK_R","BORD","STAR","BLAC","SCHU","COPE","MMAX","NANS","COOM","HARE","PLU2","PLU1"]
-
 rule_codes = ["RV", "MJ", "AP_K", "BUCK_I", "BUCK_R", "BORD", "STAR" ,"BLAC","SCHU","COPE", "MMAX", "NANS", "BORD", "COOM", "HARE", "PLU2", "PLU1"]
+
+
 candidates = [9,14]
 
 # Numbers of voters

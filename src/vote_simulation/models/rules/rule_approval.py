@@ -37,11 +37,11 @@ from __future__ import annotations
 
 from svvamp import Profile, RuleApproval
 
-from vote_simulation.models.rules.base import SvvampRuleWrapper
 from vote_simulation.models.rules.registry import RuleInput, RuleResult, _ensure_profile, register_rule
+from vote_simulation.models.rules.score_based import ScoreBasedRuleWrapper
 
 
-class ApprovalResult(SvvampRuleWrapper):
+class ApprovalResult(ScoreBasedRuleWrapper):
     """Wrapper around :class:`svvamp.RuleApproval` with proper co-winner semantics.
 
     Co-winners are **all** candidates that share the maximum approval score
@@ -94,17 +94,10 @@ class ApprovalResult(SvvampRuleWrapper):
             # All manipulation options are forced to 'exact' by svvamp for this rule —
             # no need to expose them.
         )(profile)
-        self.cowinners_ = self._compute_cowinners()
-
-    def _compute_cowinners(self) -> list[str]:
-        """Return all candidates whose approval score equals the maximum."""
-        # scores_[c] = integer count of approving voters — use exact integer equality.
-        return self._max_score_cowinners(self._inner.scores_)
+        self.cowinners_ = self._init_score_based()
 
 
-# ---------------------------------------------------------------------------
 # Factory
-# ---------------------------------------------------------------------------
 
 
 def _build_approval(
@@ -133,27 +126,42 @@ def _build_approval(
     return builder
 
 
-# ---------------------------------------------------------------------------
 # Rule registrations
-# ---------------------------------------------------------------------------
 
-# ── Threshold = 0 (default svvamp behaviour) ────────────────────────────────
+# Threshold = 0 (default svvamp behaviour)
 register_rule("AP_T0", _build_approval(approval_threshold=0.0, approval_comparator=">"))
 register_rule("AP_T0GE", _build_approval(approval_threshold=0.0, approval_comparator=">="))
 
-# ── Threshold = 0.5 ─────────────────────────────────────────────────────────
+# Threshold = 0.5
 register_rule("AP_T05", _build_approval(approval_threshold=0.5, approval_comparator=">"))
 register_rule("AP_T05GE", _build_approval(approval_threshold=0.5, approval_comparator=">="))
 
-# ── Threshold = 0.6 ─────────────────────────────────────────────────────────
+# Threshold = 0.6
 register_rule("AP_T06", _build_approval(approval_threshold=0.6, approval_comparator=">"))
 
-# ── Threshold = 0.7 ─────────────────────────────────────────────────────────
+# Threshold = 0.7
 register_rule("AP_T07", _build_approval(approval_threshold=0.7, approval_comparator=">"))
 register_rule("AP_T", _build_approval(approval_threshold=0.7, approval_comparator=">"))  # legacy alias
 
-# ── Threshold = 0.8 ─────────────────────────────────────────────────────────
+# Threshold = 0.8
 register_rule("AP_T08", _build_approval(approval_threshold=0.8, approval_comparator=">"))
 
-# ── Threshold = 0.9 ─────────────────────────────────────────────────────────
+# Threshold = 0.9
 register_rule("AP_T09", _build_approval(approval_threshold=0.9, approval_comparator=">"))
+
+
+if __name__ == "__main__":
+    import numpy as np
+
+    # Example usage
+    profile = Profile(
+        preferences_ut=np.array([[1.0, -1.0], [-1.0, 1.0]]),
+        labels_candidates=["A", "B"],
+    )
+
+    profile.demo()
+
+    p = _ensure_profile(profile)  # just to demonstrate that it works with profiles directly
+    p.demo()
+    result = ApprovalResult(profile, approval_threshold=0.0)
+    print(f"Co-winners: {result.cowinners_}")

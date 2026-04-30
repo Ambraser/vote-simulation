@@ -134,10 +134,7 @@ class SimulationStepResult:
         """
         if not self._metrics_by_rule:
             return pd.DataFrame(columns=list(METRIC_FIELDS))
-        rows = [
-            {"rule": code, **m.to_dict()}
-            for code, m in self._metrics_by_rule.items()
-        ]
+        rows = [{"rule": code, **m.to_dict()} for code, m in self._metrics_by_rule.items()]
         return pd.DataFrame(rows).set_index("rule")
 
     # ------------------------------------------------------------------
@@ -265,9 +262,7 @@ class SimulationStepResult:
             metrics = f"\nMean distance: {self.mean_distance:.4f}\nMost distant: {r1} <-> {r2} ({d:.4f})"
 
         mat_str = f"\nDistance Matrix:\n{indent(self.format_distance_matrix(), '  ')}" if self._rule_order else ""
-        return (
-            f"{header}\nWinners by rule:\n{indent(winners_str, '  ')}{metrics}{mat_str}\n"
-        )
+        return f"{header}\nWinners by rule:\n{indent(winners_str, '  ')}{metrics}{mat_str}\n"
 
     def compute_distance_matrix(self) -> np.ndarray:
         """Rebuild the full distance matrix from winners and return it."""

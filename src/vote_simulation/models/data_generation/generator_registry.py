@@ -371,3 +371,17 @@ def _build_vmf_hypersphere(
 
 
 register_generator("VMF_HS", _build_vmf_hypersphere)
+
+
+if __name__ == "__main__":
+    # Quick test of the registry
+    code = "IANC"
+    n_voters = 100
+    n_candidates = 9
+
+    builder = get_generator_builder(code)
+    profile = builder(n_voters, n_candidates, seed=123)
+    print(f"Generated profile with code '{code}':")
+    print(f"Candidate labels: {profile.labels_candidates}")
+    print(f"Utility matrix shape: {profile.preferences_ut.shape}")
+    profile.plot3()

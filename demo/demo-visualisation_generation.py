@@ -34,12 +34,7 @@ SKIP_CODES: set[str] = {"IANC"}
 
 
 # core plotting helper
-def generate_plots(
-    gen_code: str,
-    n_v: int = 1000,
-    n_c: int = 3,
-    seed: int = 42,
-) -> tuple[Path, Path]:
+def generate_plots(gen_code: str, n_v: int = 1000, n_c: int = 3, seed: int = 42, dim: int = 2) -> tuple[Path, Path]:
     """Build a profile and save Plot3 + MDS plots. Returns saved paths."""
     builder = get_generator_builder(gen_code)
     profile = builder(n_v=n_v, n_c=n_c, seed=seed)
@@ -50,8 +45,8 @@ def generate_plots(
     plt.savefig(plot3_path, dpi=150, bbox_inches="tight")
     plt.close()
 
-    # MDS 2-D projection
-    mds = MDS(n_components=2, random_state=seed, normalized_stress="auto")
+    # MDS projection
+    mds = MDS(n_components=dim, random_state=seed, normalized_stress="auto")
     coords_2d = mds.fit_transform(profile.preferences_ut)
 
     plt.figure(figsize=(5, 5))
@@ -62,7 +57,7 @@ def generate_plots(
         edgecolors="k",
         linewidths=0.3,
     )
-    plt.title(f"{gen_code} (n_v={n_v}, n_c={n_c}) — MDS 2D projection")
+    plt.title(f"{gen_code} (n_v={n_v}, n_c={n_c}) — MDS {dim}D projection")
     plt.tight_layout()
     mds_path = IMG_DIR / f"{gen_code.lower()}MDS.png"
     plt.savefig(mds_path, dpi=150, bbox_inches="tight")
@@ -94,4 +89,4 @@ def generate_all(
 
 if __name__ == "__main__":
     # generate_plots("EUCLID", n_v=1000, n_c=3, seed=161)
-    generate_all(n_v=1000, n_c=3, seed=161)
+    generate_plots("IC", n_v=500, n_c=6, seed=0, dim=3)

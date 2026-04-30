@@ -7,14 +7,13 @@ used internally by svvamp to resolve ``w_``.
 
 from __future__ import annotations
 
-import numpy as np
 from svvamp import Profile, RuleCopeland
 
-from vote_simulation.models.rules.base import SvvampRuleWrapper
 from vote_simulation.models.rules.registry import RuleInput, RuleResult, _ensure_profile, register_rule
+from vote_simulation.models.rules.score_based import ScoreBasedRuleWrapper
 
 
-class CopelandResult(SvvampRuleWrapper):
+class CopelandResult(ScoreBasedRuleWrapper):
     """Wrapper around :class:`svvamp.RuleCopeland` with proper co-winner semantics.
 
     Co-winners are **all** candidates that share the maximum Copeland score
@@ -85,10 +84,10 @@ class CopelandResult(SvvampRuleWrapper):
         profiles with equal utilities produce equal scores — and thus correct
         co-winner sets — regardless of rank-breaking used internally by svvamp.
         """
-        #mv = np.asarray(self.profile_.matrix_victories_ut_abs, dtype=float)
-        #n_c = mv.shape[0]
-        #scores = np.zeros(n_c, dtype=float)
-        #for c in range(n_c):
+        # mv = np.asarray(self.profile_.matrix_victories_ut_abs, dtype=float)
+        # n_c = mv.shape[0]
+        # scores = np.zeros(n_c, dtype=float)
+        # for c in range(n_c):
         #    for d in range(n_c):
         #        if c == d:
         #            continue
@@ -142,11 +141,7 @@ def _build_copeland(
 # Rule registrations
 # ---------------------------------------------------------------------------
 
-# Default: cm_option='exact', fast manipulation checks otherwise
-register_rule("COPE", _build_copeland(cm_option="exact"))
-
-# Variant: fast everywhere (useful for large profiles / benchmarks)
-register_rule("COPE_FAST", _build_copeland(cm_option="fast"))
+register_rule("COPE", _build_copeland(cm_option="fast"))
 
 # Variant: all options set to 'exact' (slower but fully precise)
 register_rule(

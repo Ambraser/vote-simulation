@@ -92,9 +92,9 @@ class SvvampRuleWrapper:
             1-D array of per-candidate scores.
         """
         arr = np.asarray(scores)
-        #print(arr)
-        #print(self._inner.scores_)
-        #self._inner.demo_results_()
+        # print(arr)
+        # print(self._inner.scores_)
+        # self._inner.demo_results_()
         best = arr.max()
         if np.issubdtype(arr.dtype, np.integer):
             tied = np.flatnonzero(arr == best)

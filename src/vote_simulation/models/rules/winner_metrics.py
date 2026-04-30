@@ -41,7 +41,6 @@ from dataclasses import dataclass
 import numpy as np
 from svvamp import Profile
 
-
 # ---------------------------------------------------------------------------
 # Field catalogue — single source of truth for serialisation / accumulation
 # ---------------------------------------------------------------------------
@@ -148,7 +147,7 @@ def compute_winner_metrics(
     there is no redundant computation across successive calls.
     """
     idx = np.asarray(cowinner_indices, dtype=int)
-    n_v: int = int(profile.n_v)
+    # n_v: int = int(profile.n_v)  # ruff ignore
     n_c: int = int(profile.n_c)
     n_w: int = int(idx.size)
     has_tie = n_w > 1
