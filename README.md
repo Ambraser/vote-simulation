@@ -4,7 +4,7 @@
 
 A framework to compare social choice rules
 
-* Created by **[Ambre Laqueuvre](https://github.com/Damidas0)**
+* Created by **[Ambre Laqueuvre](https://github.com/Ambraser)**
   * PyPI: https://pypi.org/user/ambraser/
 * PyPI package: https://pypi.org/project/vote_simulation/
 * Free software: MIT License
@@ -17,7 +17,7 @@ A framework to compare social choice rules
 
 Documentation is built with [Zensical](https://zensical.org/) and deployed to GitHub Pages.
 
-* **Live site:** https://Damidas0.github.io/vote-simulation/
+* **Live site:** https://Ambraser.github.io/vote-simulation/
 * **Preview locally:** `just docs-serve` (serves at http://localhost:8000)
 * **Build:** `just docs-build`
 
