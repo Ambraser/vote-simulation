@@ -101,6 +101,8 @@ def run_rules_on_instance(
     data_instance: DataInstance,
     rule_codes: list[str],
     config: ResultConfig | None = None,
+    *,
+    compute_metrics: bool = True,
 ) -> SimulationStepResult:
     """
     Apply every rule and collect winners into a ``SimulationStepResult``.
@@ -109,6 +111,9 @@ def run_rules_on_instance(
         data_instance: The profile data to run the rules on.
         rule_codes: List of rule codes to apply (e.g. ["RV", "MJ", "AP_T"]).
         config: Optional :class:`ResultConfig` attached to the step.
+        compute_metrics: Whether to compute :class:`~vote_simulation.models.rules.WinnerMetrics`
+            for each rule.  Set to ``False`` to skip metric computation and
+            reduce runtime when quality metrics are not needed.
     """
     profile = data_instance.profile
     step = SimulationStepResult(
@@ -122,11 +127,14 @@ def run_rules_on_instance(
             builder = get_rule_builder(normalized)
             rule: RuleResult = builder(profile, None)
             winners = rule.cowinners_
-            try:
-                metrics = rule.compute_metrics()
-                step.add_method_result_with_metrics(normalized, winners, metrics)
-            except Exception:
-                # Rule wrappers outside SvvampRuleWrapper don't carry metrics — degrade gracefully.
+            if compute_metrics:
+                try:
+                    metrics = rule.compute_metrics()
+                    step.add_method_result_with_metrics(normalized, winners, metrics)
+                except Exception:
+                    # Rule wrappers outside SvvampRuleWrapper don't carry metrics — degrade gracefully.
+                    step.add_method_result(normalized, winners)
+            else:
                 step.add_method_result(normalized, winners)
         except Exception as e:  # noqa: BLE001
             print(f"Error applying rule '{normalized}': {e}")
@@ -192,7 +200,11 @@ def generate_data(config_path: str, show_progress: bool = True) -> list[str]:
 
 
 def simulation_step(
-    profile: Profile, rule_codes: list[str], config: ResultConfig | None = None
+    profile: Profile,
+    rule_codes: list[str],
+    config: ResultConfig | None = None,
+    *,
+    compute_metrics: bool = True,
 ) -> SimulationStepResult:
     """Run a single profile through all rules and return a :class:`SimulationStepResult`.
 
@@ -201,17 +213,19 @@ def simulation_step(
         candidates: List of candidate names.
         rule_codes: List of rule codes to apply (e.g. ["RV", "MJ", "AP_T"]).
         config: Optional :class:`ResultConfig` attached to the step.
+        compute_metrics: Whether to compute :class:`~vote_simulation.models.rules.WinnerMetrics`
+            for each rule.  Defaults to ``True``.
     """
     step_config = config or ResultConfig()
 
     data = DataInstance.from_profile(profile)
 
-    step_result = run_rules_on_instance(data, rule_codes, config=step_config)
+    step_result = run_rules_on_instance(data, rule_codes, config=step_config, compute_metrics=compute_metrics)
 
     return step_result
 
 
-def simulation_from_config(config_path: str, show_progress: bool = True) -> None:
+def simulation_from_config(config_path: str, show_progress: bool = True, *, compute_metrics: bool = True) -> None:
     """Full pipeline: generate profiles, apply rules, save results.
 
     For every ``(model, n_voters, n_candidates, iteration)`` combination:
@@ -221,6 +235,9 @@ def simulation_from_config(config_path: str, show_progress: bool = True) -> None
 
     Args:
         config_path: Path to the TOML configuration file (see docs for the template).
+        show_progress: Whether to display a progress bar.
+        compute_metrics: Whether to compute :class:`~vote_simulation.models.rules.WinnerMetrics`
+            for each rule.  Defaults to ``True``.
     """
     config = load_simulation_config(config_path)
     _validate_generation_config(config)
@@ -252,7 +269,7 @@ def simulation_from_config(config_path: str, show_progress: bool = True) -> None
                         )
 
                         # 2) Apply rules
-                        step = run_rules_on_instance(di, config.rule_codes, config=step_cfg)
+                        step = run_rules_on_instance(di, config.rule_codes, config=step_cfg, compute_metrics=compute_metrics)
 
                         # 3) Save result
                         result_path = _sim_dir(config.output_base_path, model, n_v, n_c) / _iter_filename(it)
@@ -274,6 +291,8 @@ def simulation_instance(
     base_path: str = "data",
     reload: bool = False,
     show_progress: bool = True,
+    *,
+    compute_metrics: bool = True,
 ) -> SimulationSeriesResult:
     """Run the workflow on a single (model, voters, candidates) instance.
 
@@ -298,6 +317,9 @@ def simulation_instance(
         base_path: Root folder for generated data. Defaults to ``"data"``.
         reload: Force re-computation (ignore cache). Defaults to False.
         show_progress: Whether to display progress bars. Defaults to True.
+        compute_metrics: Whether to compute :class:`~vote_simulation.models.rules.WinnerMetrics`
+            for each rule.  Defaults to ``True``.  Set to ``False`` to skip
+            metric computation when only winner distances are needed.
     Returns:
         SimulationSeriesResult with attached :attr:`config` including all rules.
     """
@@ -383,7 +405,7 @@ def simulation_instance(
                 seed=seed,
                 base_path=base_path,
             )
-            step = run_rules_on_instance(di, normalized_rules, config=base_config)
+            step = run_rules_on_instance(di, normalized_rules, config=base_config, compute_metrics=compute_metrics)
             series.add_step(step)
             pbar.update(1)
 
@@ -397,7 +419,12 @@ def simulation_instance(
     return series
 
 
-def simulation_series_from_config(config_path: str, reload: bool = False) -> SimulationTotalResult:
+def simulation_series_from_config(
+    config_path: str,
+    reload: bool = False,
+    *,
+    compute_metrics: bool = True,
+) -> SimulationTotalResult:
     """Run simulation instances for every combination in the config.
 
     Iterates over each ``(model, n_voters, n_candidates)`` triplet defined
@@ -406,6 +433,9 @@ def simulation_series_from_config(config_path: str, reload: bool = False) -> Sim
 
     Args:
         config_path: Path to the TOML configuration file.
+        reload: Force re-computation (ignore cache). Defaults to False.
+        compute_metrics: Whether to compute :class:`~vote_simulation.models.rules.WinnerMetrics`
+            for each rule.  Defaults to ``True``.
 
     Returns:
         A :class:`SimulationTotalResult` containing one series per
@@ -430,6 +460,7 @@ def simulation_series_from_config(config_path: str, reload: bool = False) -> Sim
                         base_path=config.output_base_path,
                         reload=reload,
                         show_progress=False,  # inner progress is handled by simulation_instance
+                        compute_metrics=compute_metrics,
                     )
                     total_result.add_series(series)
                     pbar.update(1)

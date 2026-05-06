@@ -10,6 +10,18 @@ import numpy as np
 import pandas as pd
 from svvamp import Profile
 
+try:
+    from scipy.cluster.hierarchy import leaves_list, linkage
+    _HAS_SCIPY = True
+except ImportError:
+    _HAS_SCIPY = False
+
+try:
+    import matplotlib.pyplot as plt
+    _HAS_MPL = True
+except ImportError:
+    _HAS_MPL = False
+
 
 class DataInstance:
     """Encapsulates an election profile (utility matrix + candidate labels).
@@ -277,3 +289,150 @@ class DataInstance:
     def n_candidates(self) -> int:
         """Number of candidates in this instance."""
         return int(self.data.shape[1])
+    
+    @staticmethod
+    def _cluster_order(matrix: np.ndarray, axis: int, method: str = "average", metric: str = "euclidean") -> np.ndarray:
+        """Return the reordered indices of rows or columns via hierarchical clustering.
+
+        Args:
+            matrix: 2-D array ``(n_voters, n_candidates)``.
+            axis: 0 = cluster rows (voters), 1 = cluster columns (candidates).
+            method: Linkage method passed to ``scipy.cluster.hierarchy.linkage``.
+            metric: Distance metric passed to ``scipy.cluster.hierarchy.linkage``.
+
+        Returns:
+            1-D array of reordered indices.
+        """
+        n_items = matrix.shape[axis]
+        if n_items <= 1 or not _HAS_SCIPY:
+            return np.arange(n_items)
+
+        # For column clustering, transpose so rows = candidates
+        data = matrix.T if axis == 1 else matrix
+        lnk = linkage(data, method=method, metric=metric)
+        return leaves_list(lnk)
+
+    
+
+    def plot_heatmap(
+        self,
+        *,
+        cluster_columns: bool = False,
+        cluster_rows: bool = True,
+        method: str = "average",
+        metric: str = "euclidean",
+        cmap: str = "viridis",
+        title: str | None = None,
+        save_path: str | None = None,
+        show: bool = True,
+    ) -> dict:
+        """Visualize the utility matrix as a heatmap with optional hierarchical clustering.
+
+        Values are already in [0, 1]. Columns (candidates) are reordered by
+        hierarchical clustering by default so that similar preference profiles
+        appear next to each other.
+
+        Args:
+            cluster_columns: Reorder candidates by hierarchical clustering (default True).
+            cluster_rows: Reorder voters by hierarchical clustering (default False).
+            method: Linkage method (``"average"``, ``"ward"``, ``"complete"``, …).
+            metric: Distance metric (``"euclidean"``, ``"cosine"``, …).
+            cmap: Matplotlib colormap name.
+            title: Figure title. Defaults to model code if available.
+            save_path: If provided, save the figure to this path.
+            show: Whether to call ``plt.show()``.
+
+        Returns:
+            Dict with keys ``ordered_matrix``, ``row_order``, ``col_order``.
+
+        Raises:
+            ImportError: If matplotlib is not installed.
+        """
+        if not _HAS_MPL:
+            raise ImportError("matplotlib is required for plot_heatmap(). Install it with: pip install matplotlib")
+
+        if not _HAS_SCIPY and (cluster_columns or cluster_rows):
+            print("[Warning] scipy not found. Clustering disabled. Install with: pip install scipy")
+
+        matrix = self.data  # already in [0, 1]
+
+        row_order: np.ndarray = (
+            self._cluster_order(matrix, axis=0, method=method, metric=metric)
+            if cluster_rows
+            else np.arange(matrix.shape[0])
+        )
+        col_order: np.ndarray = (
+            self._cluster_order(matrix, axis=1, method=method, metric=metric)
+            if cluster_columns
+            else np.arange(matrix.shape[1])
+        )
+
+        ordered = matrix[row_order][:, col_order]
+        ordered_candidates = self.candidates[col_order]
+
+        # --- figure sizing
+        fig_w = max(8, ordered.shape[1] * 0.5)
+        fig_h = max(5, ordered.shape[0] * 0.08)
+
+        fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+
+        im = ax.imshow(
+            ordered,
+            aspect="auto",
+            interpolation="nearest",
+            cmap=cmap,
+            vmin=0.0,
+            vmax=1.0,
+        )
+
+        # --- axes labels
+        if title is None:
+            title = f"Profiles heatmap — {self.model_code}" if self.model_code else "Profiles heatmap"
+
+        xlabel = "Candidates"
+        if cluster_columns and _HAS_SCIPY:
+            xlabel += " (clustered)"
+        ylabel = "Voters"
+        if cluster_rows and _HAS_SCIPY:
+            ylabel += " (clustered)"
+
+        ax.set_title(title, fontsize=14, fontweight="bold")
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+
+        # candidate labels on x-axis (readable even with many candidates)
+        ax.set_xticks(np.arange(len(ordered_candidates)))
+        ax.set_xticklabels(ordered_candidates, rotation=45, ha="right", fontsize=8)
+
+        # hide individual voter ticks when there are many
+        if ordered.shape[0] <= 30:
+            ax.set_yticks(np.arange(ordered.shape[0]))
+            ax.set_yticklabels(row_order, fontsize=7)
+        else:
+            ax.set_yticks([])
+
+        plt.colorbar(im, ax=ax, label="Normalized utility [0, 1]")
+        plt.tight_layout()
+
+        if save_path:
+            fig.savefig(save_path, dpi=200, bbox_inches="tight")
+            print(f"Figure saved to: {save_path}")
+
+        if show:
+            plt.show()
+
+        return {
+            "ordered_matrix": ordered,
+            "row_order": row_order,
+            "col_order": col_order,
+        }
+
+if __name__ == "__main__":
+    # Example usage:
+    di = DataInstance.from_generator(model_code="UNI", n_v=100, n_c=5, seed=42)
+    di = DataInstance.from_generator(model_code="EUCLID_1D", n_v=100, n_c=5, seed=42)
+    di = DataInstance.from_generator(model_code="EUCLID_2D", n_v=100, n_c=15, seed=42)
+    di = DataInstance.from_generator(model_code="EUCLID_5D", n_v=100, n_c=15, seed=42)
+    print("Candidates:", di.candidates)
+    print("Utility matrix shape:", di.data.shape)
+    di.plot_heatmap(cluster_columns=True, cluster_rows=False, title="Uniform Model Heatmap")

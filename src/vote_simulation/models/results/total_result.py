@@ -36,6 +36,7 @@ import pandas as pd
 
 from vote_simulation.models.results.series_result import SimulationSeriesResult
 from vote_simulation.models.results.utils import _plot_heatmap
+from vote_simulation.models.rules.winner_metrics import METRIC_FIELDS
 
 # ------------------------------------------------------------------
 # Key & constants
@@ -575,6 +576,353 @@ class SimulationTotalResult:
             plt.show()
 
         return ax
+
+    def plot_metrics_rules_matrix(
+        self,
+        row_param: str = "n_voters",
+        col_param: str = "n_candidates",
+        *,
+        stat: str = "mean",
+        metrics: list[str] | None = None,
+        annotate: bool = True,
+        fmt: str = ".3f",
+        show: bool = True,
+        save_path: str | None = None,
+    ) -> Any:
+        """Heatmap with rules as columns and metrics as rows.
+
+        Each cell shows the aggregated statistic (*stat*) for a given
+        ``(metric, rule)`` pair, averaged over all series currently in the
+        object (use :meth:`filter` to restrict the scope first).
+
+        The color scale is **normalised per row** (per metric) so that the
+        gradient is uniform within each row and rules can be directly compared
+        regardless of the absolute scale of each metric.
+
+        Args:
+            row_param: Used only to derive a description of fixed parameters
+                in the title.  Filtering is the recommended way to narrow down
+                the data.
+            col_param: Same as *row_param*.
+            stat: ``"mean"`` (default) or ``"std"``.
+            metrics: Explicit list of metric fields (rows).  When *None* all
+                fields in :data:`~vote_simulation.models.rules.winner_metrics.METRIC_FIELDS`
+                are included.
+            annotate: Whether to print raw values inside each cell.
+            fmt: Format string used for annotations (e.g. ``\".3f\"``).
+            show: Whether to call ``plt.show()`` at the end.
+            save_path: Optional file path to save the figure.
+
+        Returns:
+            The matplotlib Axes used for plotting.
+        """
+        import matplotlib.pyplot as plt
+        from matplotlib.colors import Normalize
+        from matplotlib.cm import ScalarMappable
+
+        fields = list(metrics) if metrics is not None else list(METRIC_FIELDS)
+
+        # Collect per-rule means across all series
+        # Discover all rules present in any series
+        all_rules: list[str] = []
+        for series in self._entries.values():
+            frame = series.metrics_summary_frame
+            if not frame.empty:
+                for r in frame.index:
+                    if r not in all_rules:
+                        all_rules.append(r)
+
+        if not all_rules:
+            raise ValueError(
+                "No winner-metric data found. "
+                "Check that metrics were computed during simulation."
+            )
+
+        # Build raw matrix: shape (n_metrics, n_rules)
+        # Average over all series
+        n_m = len(fields)
+        n_r = len(all_rules)
+        raw = np.full((n_m, n_r), np.nan)
+
+        for s_idx, series in enumerate(self._entries.values()):
+            frame = series.metrics_summary_frame
+            if frame.empty:
+                continue
+            for ri, rule in enumerate(all_rules):
+                if rule not in frame.index:
+                    continue
+                for mi, field in enumerate(fields):
+                    col = f"{field}_{stat}"
+                    if col not in frame.columns:
+                        continue
+                    val = float(frame.loc[rule, col])
+                    if np.isnan(raw[mi, ri]):
+                        raw[mi, ri] = val
+                    else:
+                        raw[mi, ri] = (raw[mi, ri] * s_idx + val) / (s_idx + 1)
+
+        # Drop metric rows that are entirely NaN
+        valid_mask = ~np.all(np.isnan(raw), axis=1)
+        fields = [f for f, v in zip(fields, valid_mask) if v]
+        raw = raw[valid_mask]
+
+        if len(fields) == 0:
+            raise ValueError("No valid metric data to plot.")
+
+        # Row-normalise: each row scaled to [0, 1]
+        row_min = np.nanmin(raw, axis=1, keepdims=True)
+        row_max = np.nanmax(raw, axis=1, keepdims=True)
+        row_range = row_max - row_min
+        row_range[row_range == 0] = 1.0  # avoid division by zero for constant rows
+        normed = (raw - row_min) / row_range
+
+        fig_w = max(8.0, 1.4 * n_r + 2)
+        fig_h = max(5.0, 0.6 * len(fields) + 1.5)
+        fig, ax = plt.subplots(figsize=(fig_w, fig_h), constrained_layout=True)
+
+        im = ax.imshow(normed, cmap="YlGnBu", vmin=0, vmax=1,
+                       interpolation="nearest", aspect="auto")
+
+        ax.set_xticks(range(n_r), labels=all_rules, rotation=30, ha="right", fontsize=9)
+        ax.set_yticks(range(len(fields)), labels=[f.replace("_", " ") for f in fields], fontsize=9)
+        ax.set_xlabel("Rule", fontsize=10)
+        ax.set_ylabel("Metric", fontsize=10)
+
+        # Build title from fixed params info
+        n_series = self.series_count
+        fixed_parts = []
+        if len(self.gen_models) == 1:
+            fixed_parts.append(f"model={self.gen_models[0]}")
+        if len(self.voter_counts) == 1:
+            fixed_parts.append(f"n_voters={self.voter_counts[0]}")
+        if len(self.candidate_counts) == 1:
+            fixed_parts.append(f"n_candidates={self.candidate_counts[0]}")
+        desc = " · ".join(fixed_parts) if fixed_parts else f"{n_series} series averaged"
+        ax.set_title(
+            f"Winner metrics ({stat}) per rule\n{desc}",
+            fontsize=11,
+        )
+
+        if annotate:
+            fs = max(6, min(10, int(120 / max(n_r, 1))))
+            for mi in range(len(fields)):
+                for ri in range(n_r):
+                    val = raw[mi, ri]
+                    if not np.isnan(val):
+                        cell_norm = normed[mi, ri]
+                        txt_color = "white" if cell_norm > 0.65 else "black"
+                        ax.text(ri, mi, format(val, fmt),
+                                ha="center", va="center",
+                                fontsize=fs, color=txt_color)
+
+        cbar = fig.colorbar(
+            ScalarMappable(norm=Normalize(0, 1), cmap="YlGnBu"),
+            ax=ax, fraction=0.03, pad=0.02, shrink=0.8,
+        )
+        cbar.set_label("Normalised value (per metric)", fontsize=9)
+        cbar.set_ticks([0, 0.5, 1])
+        cbar.set_ticklabels(["min", "mid", "max"])
+
+        if save_path is not None:
+            os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
+            fig.savefig(save_path)
+        if show:
+            plt.show()
+        return ax
+
+    def plot_winner_metric_heatmap(
+        self,
+        metric_field: str,
+        rule_code: str,
+        row_param: str = "n_voters",
+        col_param: str = "n_candidates",
+        *,
+        stat: str = "mean",
+        ax: Any | None = None,
+        annotate: bool = True,
+        show: bool = True,
+        save_path: str | None = None,
+    ) -> Any:
+        """Heatmap of one winner metric for one rule, pivoted across two parameters.
+
+        Analogous to :meth:`plot_metric_heatmap` but for
+        :class:`~vote_simulation.models.rules.WinnerMetrics` fields instead of
+        rule-distance metrics.
+
+        Args:
+            metric_field: One of the fields in
+                :data:`~vote_simulation.models.rules.winner_metrics.METRIC_FIELDS`
+                (e.g. ``"social_acceptability"``, ``"rank_mean"``).
+            rule_code: Normalised rule code to inspect (e.g. ``"COPE"``).
+            row_param: Row axis — ``"gen_model"``, ``"n_voters"``, or
+                ``"n_candidates"``.
+            col_param: Column axis (same choices).
+            stat: ``"mean"`` (default) or ``"std"``.
+            ax: Optional matplotlib Axes.  A new figure is created when *None*.
+            annotate: Whether to print cell values on the heatmap.
+            show: Whether to call ``plt.show()`` at the end.
+            save_path: Optional file path to save the figure.
+
+        Returns:
+            The matplotlib Axes used for plotting.
+        """
+        import matplotlib.pyplot as plt
+
+        pivot, fixed_desc = self.metrics_pivot(
+            metric_field, rule_code,
+            row_param=row_param, col_param=col_param, stat=stat,
+        )
+        if pivot.empty:
+            raise ValueError(
+                f"No data for metric '{metric_field}' / rule '{rule_code}'. "
+                "Check that metrics were computed during simulation."
+            )
+
+        matrix = pivot.to_numpy(dtype=np.float64)
+        row_labels = [str(v) for v in pivot.index]
+        col_labels = [str(v) for v in pivot.columns]
+
+        vmin = float(np.nanmin(matrix))
+        vmax = float(np.nanmax(matrix))
+        margin = (vmax - vmin) * 0.1 or 0.01
+        vmin = max(0.0, vmin - margin)
+        vmax = min(1.0, vmax + margin) if metric_field not in {"rank_mean", "rank_median", "rank_var", "utility_mean", "utility_median", "utility_var", "n_cowinners"} else vmax + margin
+
+        fig_w = max(6.0, 1.2 * len(col_labels) + 2)
+        fig_h = max(4.0, 1.0 * len(row_labels) + 2)
+        if ax is None:
+            _, ax = plt.subplots(figsize=(fig_w, fig_h), constrained_layout=True)
+
+        image = ax.imshow(
+            matrix,
+            cmap="YlGnBu",
+            vmin=vmin,
+            vmax=vmax,
+            interpolation="nearest",
+            aspect="auto",
+        )
+        ax.set_xticks(range(len(col_labels)), labels=col_labels)
+        ax.set_yticks(range(len(row_labels)), labels=row_labels)
+        ax.set_xlabel(col_param)
+        ax.set_ylabel(row_param)
+
+        rule_up = rule_code.strip().upper()
+        title = f"{metric_field.replace('_', ' ').title()} ({stat}) — {rule_up}"
+        if fixed_desc:
+            title += f"\n({fixed_desc})"
+        ax.set_title(title, fontsize=11)
+
+        if annotate:
+            fs = max(6, min(12, int(160 / max(matrix.size, 1))))
+            for i in range(matrix.shape[0]):
+                for j in range(matrix.shape[1]):
+                    val = matrix[i, j]
+                    if not np.isnan(val):
+                        ax.text(j, i, f"{val:.3f}", ha="center", va="center",
+                                fontsize=fs, color="black")
+
+        cbar = ax.figure.colorbar(image, ax=ax, fraction=0.046, pad=0.04, shrink=0.9)
+        cbar.set_label(f"{metric_field.replace('_', ' ').title()} ({stat})")
+
+        if save_path is not None:
+            fig = ax.figure
+            assert isinstance(fig, plt.Figure)
+            os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
+            fig.savefig(save_path)
+        if show:
+            plt.show()
+        return ax
+
+    def plot_winner_metrics_grid(
+        self,
+        rule_code: str,
+        row_param: str = "n_voters",
+        col_param: str = "n_candidates",
+        *,
+        stat: str = "mean",
+        metrics: list[str] | None = None,
+        annotate: bool = True,
+        show: bool = True,
+        save_path: str | None = None,
+    ) -> Any:
+        """Grid of heatmaps — one panel per winner metric — for a single rule.
+
+        Iterates over every field in
+        :data:`~vote_simulation.models.rules.winner_metrics.METRIC_FIELDS` (or
+        the subset given by *metrics*) and draws each as a heatmap panel,
+        using the same axes as :meth:`plot_winner_metric_heatmap`.
+
+        Args:
+            rule_code: Normalised rule code to inspect (e.g. ``"COPE"``).
+            row_param: Row axis — ``"gen_model"``, ``"n_voters"``, or
+                ``"n_candidates"``.
+            col_param: Column axis (same choices).
+            stat: ``"mean"`` (default) or ``"std"``.
+            metrics: Explicit list of metric fields to plot.  When *None* all
+                fields in :data:`~vote_simulation.models.rules.winner_metrics.METRIC_FIELDS`
+                are included.
+            annotate: Whether to print cell values on each panel.
+            show: Whether to call ``plt.show()`` at the end.
+            save_path: Optional file path to save the whole figure.
+
+        Returns:
+            The 2-D NumPy array of matplotlib Axes.
+        """
+        import math
+        import matplotlib.pyplot as plt
+
+        fields = list(metrics) if metrics is not None else list(METRIC_FIELDS)
+
+        # Drop metrics with no data
+        available = [
+            f for f in fields
+            if not self.metrics_comparison_frame(f, rule_code, stat=stat).empty
+        ]
+        if not available:
+            raise ValueError(
+                f"No winner-metric data found for rule '{rule_code}'. "
+                "Check that metrics were computed during simulation."
+            )
+
+        n = len(available)
+        ncols = min(4, n)
+        nrows = math.ceil(n / ncols)
+
+        fig, axes = plt.subplots(
+            nrows, ncols,
+            figsize=(5 * ncols, 4 * nrows),
+            constrained_layout=True,
+        )
+        # Normalise axes to a flat list
+        axes_flat: list[Any] = np.array(axes).flatten().tolist()
+
+        rule_up = rule_code.strip().upper()
+        fig.suptitle(
+            f"Winner metrics ({stat}) — {rule_up}",
+            fontsize=13,
+            fontweight="bold",
+        )
+
+        for ax_i, field in zip(axes_flat, available):
+            try:
+                self.plot_winner_metric_heatmap(
+                    field, rule_code,
+                    row_param=row_param, col_param=col_param,
+                    stat=stat, ax=ax_i, annotate=annotate, show=False,
+                )
+            except ValueError:
+                ax_i.set_visible(False)
+
+        # Hide unused axes
+        for ax_i in axes_flat[len(available):]:
+            ax_i.set_visible(False)
+
+        if save_path is not None:
+            os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
+            fig.savefig(save_path)
+        if show:
+            plt.show()
+        return axes
 
     def plot_comparison_grid(
         self,

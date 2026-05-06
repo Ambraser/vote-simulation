@@ -70,7 +70,7 @@ class WinnerMetrics:
     Parameters
     ----------
     social_acceptability:
-        Fraction of voters with utility > 0 for at least one co-winner.
+        Fraction of voters with utility > 0.5 for at least one cowinner.
     utility_mean:
         Mean of ``preferences_ut[v, c]`` over all (voter, co-winner) pairs.
     utility_median:
@@ -157,17 +157,18 @@ def compute_winner_metrics(
     ut: np.ndarray = np.asarray(profile.preferences_ut, dtype=float)[:, idx]  # (n_v, n_w)
 
     # Social acceptability: fraction of voters with ut > 0 for ≥1 co-winner.
-    social_acceptability = float(np.any(ut > 0.0, axis=1).mean())
+    social_acceptability = float(np.any(ut > 0.5, axis=1).mean())
 
     # Flatten to a single series over all (voter, co-winner) pairs.
+    # Ravel allow for references instead of copies (trying to optimize)
     ut_flat = ut.ravel()
     utility_mean = float(ut_flat.mean())
     utility_median = float(np.median(ut_flat))
     utility_var = float(ut_flat.var())
 
-    # Rank metrics                                                         #
+    # Rank metrics                                                         
     # preferences_borda_rk[v, c] = n_c - 1 - (0-based rank)
-    # ⟹  1-based rank = n_c - preferences_borda_rk[v, c]
+    # 1-based rank = n_c - preferences_borda_rk[v, c]
     borda_rk: np.ndarray = np.asarray(profile.preferences_borda_rk, dtype=int)[:, idx]  # (n_v, n_w)
     ranks_1based: np.ndarray = n_c - borda_rk  # (n_v, n_w)
 
@@ -176,7 +177,7 @@ def compute_winner_metrics(
     rank_median = float(np.median(ranks_flat))
     rank_var = float(ranks_flat.var())
 
-    # First / last frequency                                              #
+    # First / last frequency                                          
     # preferences_borda_rk[v, c] == n_c - 1  ---  candidate c is ranked 1st by voter v
     # preferences_borda_rk[v, c] == 0         --- candidate c is ranked last by voter v
     freq_first = float(np.any(borda_rk == n_c - 1, axis=1).mean())

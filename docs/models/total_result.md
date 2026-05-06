@@ -170,6 +170,100 @@ gen_model  n_voters  n_candidates  distance
 
 ---
 
+## Winner metrics
+
+`SimulationTotalResult` exposes two methods to analyse **winner quality metrics** (see [`WinnerMetrics`](../rules.md)) aggregated across the entire parameter space.
+
+### Available metric fields
+
+The following fields are available in every `WinnerMetrics` object and can be used as the `metric_field` argument:
+
+| Field | Type | Description |
+|---|---|---|
+| `social_acceptability` | `float` | Fraction of voters who prefer the winner(s) to every other candidate |
+| `utility_mean` | `float` | Mean cardinal utility of the co-winner(s) across all voters |
+| `utility_median` | `float` | Median cardinal utility of the co-winner(s) |
+| `utility_var` | `float` | Variance of cardinal utility of the co-winner(s) |
+| `rank_mean` | `float` | Mean Borda rank of the co-winner(s) (0 = worst, n_candidates−1 = best) |
+| `rank_median` | `float` | Median Borda rank of the co-winner(s) |
+| `rank_var` | `float` | Variance of Borda rank of the co-winner(s) |
+| `freq_first` | `float` | Fraction of voters who rank a co-winner first |
+| `freq_last` | `float` | Fraction of voters who rank a co-winner last |
+| `has_tie` | `bool` | Whether there are multiple co-winners |
+| `n_cowinners` | `int` | Number of co-winners |
+
+### metrics_comparison_frame
+
+`metrics_comparison_frame()` returns a long-form DataFrame with one row per `(gen_model, n_voters, n_candidates)` entry, containing the aggregated statistic for one rule and one metric:
+
+```python
+df = total.metrics_comparison_frame("social_acceptability", "COPE")
+print(df.to_string(index=False))
+```
+
+```
+gen_model  n_voters  n_candidates  social_acceptability_mean
+       IC        50             3                       0.71
+       IC        50             7                       0.63
+      UNI        50             3                       0.68
+      UNI        50             7                       0.59
+```
+
+Parameters:
+
+- `metric_field` — one of the fields listed in the table above
+- `rule_code` — normalised rule code (e.g. `"COPE"`, `"AP_T0"`)
+- `stat` — `"mean"` (default) or `"std"`
+
+Series without the requested rule's metrics are silently omitted.
+
+### metrics_pivot
+
+`metrics_pivot()` is the 2-D counterpart of `metrics_comparison_frame()`: it pivots the long-form table into a matrix, analogously to `metric_matrix()` for rule-distance metrics.
+
+```python
+pivot, fixed = total.metrics_pivot(
+    "social_acceptability", "COPE",
+    row_param="n_voters",
+    col_param="n_candidates",
+)
+print(f"Fixed: {fixed}")
+print(pivot.to_string())
+```
+
+```
+Fixed: gen_model=IC, UNI
+n_candidates        3         7
+n_voters
+50            0.695     0.610
+200           0.721     0.638
+```
+
+```python
+pivot2, fixed2 = total.metrics_pivot(
+    "rank_mean", "AP_T0",
+    row_param="n_voters",
+    col_param="n_candidates",
+)
+print(f"Fixed: {fixed2}")
+print(pivot2.to_string())
+```
+
+Parameters mirror `metric_matrix()`:
+
+| Parameter | Type | Description |
+|---|---|---|
+| `metric_field` | `str` | Metric field name (see table above) |
+| `rule_code` | `str` | Rule to inspect |
+| `row_param` | `str` | Row axis — `"gen_model"`, `"n_voters"`, or `"n_candidates"` |
+| `col_param` | `str` | Column axis — `"gen_model"`, `"n_voters"`, or `"n_candidates"` |
+| `stat` | `str` | `"mean"` (default) or `"std"` |
+
+!!! tip "Filter before pivoting"
+    If the third parameter has more than one distinct value, `metrics_pivot()` averages over it implicitly. Use `.filter(...)` beforehand when you want a strict 2-D slice.
+
+---
+
 ## Plotting
 
 All plot methods accept `show=False` to skip `plt.show()` and `save_path` to write to disk.
