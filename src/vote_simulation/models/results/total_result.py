@@ -338,21 +338,18 @@ class SimulationTotalResult:
         Returns:
             ``(pivot_df, fixed_description)`` — the pivot DataFrame and a
             human-readable description of the fixed (third) parameter.
-
-        Raises:
-            ValueError: If the third parameter has multiple distinct values.
+            If the third parameter has multiple distinct values, they are
+            averaged and the description reflects this.
         """
         self._validate_axis_params(row_param, col_param)
 
         third = next(iter(_PARAM_NAMES - {row_param, col_param}))
         third_vals = {getattr(k, third) for k in self._entries}
-        if len(third_vals) > 1:
-            raise ValueError(
-                f"Parameter '{third}' has {len(third_vals)} distinct values "
-                f"{third_vals}. Call .filter({third}=<value>) first."
-            )
 
-        fixed_desc = f"{third}={next(iter(third_vals))}" if third_vals else ""
+        if len(third_vals) > 1:
+            fixed_desc = f"{third}=avg({', '.join(str(v) for v in sorted(third_vals))})"
+        else:
+            fixed_desc = f"{third}={next(iter(third_vals))}" if third_vals else ""
 
         df = self.summary_frame()
         pivot = df.pivot_table(
@@ -391,6 +388,81 @@ class SimulationTotalResult:
     # ------------------------------------------------------------------
     # Plotting
     # ------------------------------------------------------------------
+
+    def plot_mean_distance_matrix(
+        self,
+        ax: Any | None = None,
+        *,
+        annotate: bool = True,
+        show: bool = True,
+        save_path: str | None = None,
+    ) -> Any:
+        """Heatmap of the mean rule-distance matrix averaged across all series.
+
+        Each cell ``(i, j)`` shows the average percentage of iterations where
+        rules *i* and *j* disagreed, averaged over every series currently in
+        the object.  Use :meth:`filter` to restrict the scope first.
+
+        Args:
+            ax: Optional matplotlib Axes. A new figure is created when *None*.
+            annotate: Whether to print cell values on the heatmap.
+            show: Whether to call ``plt.show()`` at the end.
+            save_path: Optional file path to save the figure.
+
+        Returns:
+            The matplotlib Axes used for plotting.
+        """
+        if not self._entries:
+            raise ValueError("No series in this result — nothing to plot.")
+
+        # Collect all rule labels (union, preserving first-seen order)
+        all_rules: list[str] = []
+        rule_index: dict[str, int] = {}
+        for series in self._entries.values():
+            for r in series._rule_order:
+                if r not in rule_index:
+                    rule_index[r] = len(all_rules)
+                    all_rules.append(r)
+
+        n = len(all_rules)
+        acc = np.zeros((n, n), dtype=np.float64)
+        counts = np.zeros((n, n), dtype=np.int64)
+
+        for series in self._entries.values():
+            mat = series.mean_distance_matrix  # float32, shape (k, k)
+            if mat.size == 0:
+                continue
+            perm = np.array([rule_index[r] for r in series._rule_order], dtype=np.intp)
+            ix = np.ix_(perm, perm)
+            acc[ix] += mat.astype(np.float64)
+            counts[ix] += 1
+
+        with np.errstate(invalid="ignore"):
+            avg_matrix = np.where(counts > 0, acc / counts, np.nan)
+
+        # Build title
+        n_series = self.series_count
+        parts: list[str] = []
+        if len(self.gen_models) == 1:
+            parts.append(self.gen_models[0])
+        if len(self.voter_counts) == 1:
+            parts.append(f"n_voters={self.voter_counts[0]}")
+        if len(self.candidate_counts) == 1:
+            parts.append(f"n_candidates={self.candidate_counts[0]}")
+        desc = " · ".join(parts) if parts else f"{n_series} series averaged"
+        title = f"Mean rule distance matrix\n{desc}"
+
+        return _plot_heatmap(
+            avg_matrix.astype(np.float32),
+            all_rules,
+            title,
+            ax,
+            annotate=annotate,
+            annotation_fmt=".1f",
+            colorbar_label="Mean distance (%)",
+            show=show,
+            save_path=save_path,
+        )
 
     def plot_metric_heatmap(
         self,
@@ -502,8 +574,6 @@ class SimulationTotalResult:
         df = self.rule_pair_frame(rule_a, rule_b)
         third = next(iter(_PARAM_NAMES - {row_param, col_param}))
         third_vals = df[third].unique()
-        if len(third_vals) > 1:
-            raise ValueError(f"Parameter '{third}' has {len(third_vals)} values. Call .filter({third}=<value>) first.")
 
         pivot = df.pivot_table(
             index=row_param,
@@ -540,10 +610,12 @@ class SimulationTotalResult:
         title = f"Distance: {a_up} \u2194 {b_up}"
         if len(third_vals) == 1:
             title += f"\n({third}={third_vals[0]})"
+        elif len(third_vals) > 1:
+            title += f"\n({third}=avg({', '.join(str(v) for v in sorted(third_vals))}))"
         ax.set_title(title, fontsize=11)
 
         if annotate:
-            fs = max(6, min(12, int(160 / max(matrix.size, 1))))
+            fs = max(8, min(12, int(160 / max(matrix.size, 1))))
             for i in range(matrix.shape[0]):
                 for j in range(matrix.shape[1]):
                     val = matrix[i, j]
@@ -586,6 +658,7 @@ class SimulationTotalResult:
         metrics: list[str] | None = None,
         annotate: bool = True,
         fmt: str = ".3f",
+        cell_fontsize: int | None = None,
         show: bool = True,
         save_path: str | None = None,
     ) -> Any:
@@ -610,6 +683,10 @@ class SimulationTotalResult:
                 are included.
             annotate: Whether to print raw values inside each cell.
             fmt: Format string used for annotations (e.g. ``\".3f\"``).
+            cell_fontsize: Font size for cell annotations.  When *None*
+                (default) the size is chosen automatically based on the number
+                of rules (smaller when there are many rules).  Pass an
+                explicit integer (e.g. ``8``) to override.
             show: Whether to call ``plt.show()`` at the end.
             save_path: Optional file path to save the figure.
 
@@ -617,8 +694,8 @@ class SimulationTotalResult:
             The matplotlib Axes used for plotting.
         """
         import matplotlib.pyplot as plt
-        from matplotlib.colors import Normalize
         from matplotlib.cm import ScalarMappable
+        from matplotlib.colors import Normalize
 
         fields = list(metrics) if metrics is not None else list(METRIC_FIELDS)
 
@@ -633,10 +710,7 @@ class SimulationTotalResult:
                         all_rules.append(r)
 
         if not all_rules:
-            raise ValueError(
-                "No winner-metric data found. "
-                "Check that metrics were computed during simulation."
-            )
+            raise ValueError("No winner-metric data found. Check that metrics were computed during simulation.")
 
         # Build raw matrix: shape (n_metrics, n_rules)
         # Average over all series
@@ -676,17 +750,17 @@ class SimulationTotalResult:
         row_range[row_range == 0] = 1.0  # avoid division by zero for constant rows
         normed = (raw - row_min) / row_range
 
-        fig_w = max(8.0, 1.4 * n_r + 2)
-        fig_h = max(5.0, 0.6 * len(fields) + 1.5)
+        fig_w = max(10.0, 1.6 * n_r + 2)
+        fig_h = max(6.0, 0.7 * len(fields) + 3.0)  # extra height for bottom colorbar
         fig, ax = plt.subplots(figsize=(fig_w, fig_h), constrained_layout=True)
 
-        im = ax.imshow(normed, cmap="YlGnBu", vmin=0, vmax=1,
-                       interpolation="nearest", aspect="auto")
+        im = ax.imshow(normed, cmap="YlGnBu", vmin=0, vmax=1, interpolation="nearest", aspect="auto")
 
-        ax.set_xticks(range(n_r), labels=all_rules, rotation=30, ha="right", fontsize=9)
-        ax.set_yticks(range(len(fields)), labels=[f.replace("_", " ") for f in fields], fontsize=9)
-        ax.set_xlabel("Rule", fontsize=10)
-        ax.set_ylabel("Metric", fontsize=10)
+        tick_fs = max(10, min(13, int(200 / max(n_r, 1))))
+        ax.set_xticks(range(n_r), labels=all_rules, rotation=45, ha="right", fontsize=tick_fs)
+        ax.set_yticks(range(len(fields)), labels=[f.replace("_", " ") for f in fields], fontsize=11)
+        ax.set_xlabel("Rule", fontsize=12)
+        ax.set_ylabel("Metric", fontsize=12)
 
         # Build title from fixed params info
         n_series = self.series_count
@@ -700,28 +774,32 @@ class SimulationTotalResult:
         desc = " · ".join(fixed_parts) if fixed_parts else f"{n_series} series averaged"
         ax.set_title(
             f"Winner metrics ({stat}) per rule\n{desc}",
-            fontsize=11,
+            fontsize=13,
         )
 
         if annotate:
-            fs = max(6, min(10, int(120 / max(n_r, 1))))
+            fs = cell_fontsize if cell_fontsize is not None else max(12, min(12, int(120 / max(n_r, 1))))
             for mi in range(len(fields)):
                 for ri in range(n_r):
                     val = raw[mi, ri]
                     if not np.isnan(val):
                         cell_norm = normed[mi, ri]
                         txt_color = "white" if cell_norm > 0.65 else "black"
-                        ax.text(ri, mi, format(val, fmt),
-                                ha="center", va="center",
-                                fontsize=fs, color=txt_color)
+                        ax.text(ri, mi, format(val, fmt), ha="center", va="center", fontsize=fs, color=txt_color)
 
         cbar = fig.colorbar(
             ScalarMappable(norm=Normalize(0, 1), cmap="YlGnBu"),
-            ax=ax, fraction=0.03, pad=0.02, shrink=0.8,
+            ax=ax,
+            location="bottom",
+            fraction=0.05,
+            pad=0.22,
+            shrink=0.6,
+            aspect=40,
         )
-        cbar.set_label("Normalised value (per metric)", fontsize=9)
+        cbar.set_label("Normalised value (per metric)", fontsize=11)
         cbar.set_ticks([0, 0.5, 1])
-        cbar.set_ticklabels(["min", "mid", "max"])
+        cbar.set_ticklabels(["min", "mid", "max"], fontsize=10)
+        cbar.ax.tick_params(labelsize=10)
 
         if save_path is not None:
             os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
@@ -769,8 +847,11 @@ class SimulationTotalResult:
         import matplotlib.pyplot as plt
 
         pivot, fixed_desc = self.metrics_pivot(
-            metric_field, rule_code,
-            row_param=row_param, col_param=col_param, stat=stat,
+            metric_field,
+            rule_code,
+            row_param=row_param,
+            col_param=col_param,
+            stat=stat,
         )
         if pivot.empty:
             raise ValueError(
@@ -786,7 +867,20 @@ class SimulationTotalResult:
         vmax = float(np.nanmax(matrix))
         margin = (vmax - vmin) * 0.1 or 0.01
         vmin = max(0.0, vmin - margin)
-        vmax = min(1.0, vmax + margin) if metric_field not in {"rank_mean", "rank_median", "rank_var", "utility_mean", "utility_median", "utility_var", "n_cowinners"} else vmax + margin
+        vmax = (
+            min(1.0, vmax + margin)
+            if metric_field
+            not in {
+                "rank_mean",
+                "rank_median",
+                "rank_var",
+                "utility_mean",
+                "utility_median",
+                "utility_var",
+                "n_cowinners",
+            }
+            else vmax + margin
+        )
 
         fig_w = max(6.0, 1.2 * len(col_labels) + 2)
         fig_h = max(4.0, 1.0 * len(row_labels) + 2)
@@ -818,8 +912,7 @@ class SimulationTotalResult:
                 for j in range(matrix.shape[1]):
                     val = matrix[i, j]
                     if not np.isnan(val):
-                        ax.text(j, i, f"{val:.3f}", ha="center", va="center",
-                                fontsize=fs, color="black")
+                        ax.text(j, i, f"{val:.3f}", ha="center", va="center", fontsize=fs, color="black")
 
         cbar = ax.figure.colorbar(image, ax=ax, fraction=0.046, pad=0.04, shrink=0.9)
         cbar.set_label(f"{metric_field.replace('_', ' ').title()} ({stat})")
@@ -869,15 +962,13 @@ class SimulationTotalResult:
             The 2-D NumPy array of matplotlib Axes.
         """
         import math
+
         import matplotlib.pyplot as plt
 
         fields = list(metrics) if metrics is not None else list(METRIC_FIELDS)
 
         # Drop metrics with no data
-        available = [
-            f for f in fields
-            if not self.metrics_comparison_frame(f, rule_code, stat=stat).empty
-        ]
+        available = [f for f in fields if not self.metrics_comparison_frame(f, rule_code, stat=stat).empty]
         if not available:
             raise ValueError(
                 f"No winner-metric data found for rule '{rule_code}'. "
@@ -889,7 +980,8 @@ class SimulationTotalResult:
         nrows = math.ceil(n / ncols)
 
         fig, axes = plt.subplots(
-            nrows, ncols,
+            nrows,
+            ncols,
             figsize=(5 * ncols, 4 * nrows),
             constrained_layout=True,
         )
@@ -906,15 +998,20 @@ class SimulationTotalResult:
         for ax_i, field in zip(axes_flat, available):
             try:
                 self.plot_winner_metric_heatmap(
-                    field, rule_code,
-                    row_param=row_param, col_param=col_param,
-                    stat=stat, ax=ax_i, annotate=annotate, show=False,
+                    field,
+                    rule_code,
+                    row_param=row_param,
+                    col_param=col_param,
+                    stat=stat,
+                    ax=ax_i,
+                    annotate=annotate,
+                    show=False,
                 )
             except ValueError:
                 ax_i.set_visible(False)
 
         # Hide unused axes
-        for ax_i in axes_flat[len(available):]:
+        for ax_i in axes_flat[len(available) :]:
             ax_i.set_visible(False)
 
         if save_path is not None:

@@ -1,0 +1,428 @@
+"""Application Streamlit principale — vote_simulation UI.
+
+Structure :
+    Barre globale (statut, TOML actif, Run complet)
+    └── Onglet 1 : Configuration
+    └── Onglet 2 : Données (génération)
+    └── Onglet 3 : Simulation (règles)
+    └── Onglet 4 : Résultats
+
+Lancement :
+    streamlit run src/vote_simulation/ui/app.py
+    # ou via l'entry-point :
+    vote-sim-ui
+"""
+
+from __future__ import annotations
+
+import copy
+import queue
+import threading
+import time
+import streamlit as st
+from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ctx
+
+from vote_simulation.simulation.simulation import simulation_series_from_config_2
+from vote_simulation.ui.tab_config import render_tab_config
+from vote_simulation.ui.tab_generation import render_tab_generation
+from vote_simulation.ui.tab_results import render_tab_results
+from vote_simulation.ui.tab_simulation import render_tab_simulation
+from vote_simulation.ui.toml_utils import DEFAULT_STATE, write_temp_toml
+
+# ---------------------------------------------------------------------------
+# Configuration de la page Streamlit
+# ---------------------------------------------------------------------------
+
+st.set_page_config(
+    page_title="vote_simulation UI",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
+# ---------------------------------------------------------------------------
+# Initialisation de session_state
+# ---------------------------------------------------------------------------
+
+def _init_session() -> None:
+    if "cfg" not in st.session_state:
+        # Démarrer sans configuration par défaut — l'utilisateur charge explicitement un TOML.
+        st.session_state["cfg"] = copy.deepcopy(DEFAULT_STATE)
+        st.session_state["toml_active_path"] = None   # Aucune config chargée
+        st.session_state["cfg_base_dir"] = None
+
+    # Statuts globaux
+    if "global_status" not in st.session_state:
+        st.session_state["global_status"] = "Prêt"
+
+    # État du Run complet
+    if "full_run_running" not in st.session_state:
+        st.session_state["full_run_running"] = False
+    if "full_run_done" not in st.session_state:
+        st.session_state["full_run_done"] = False
+    if "full_run_error" not in st.session_state:
+        st.session_state["full_run_error"] = None
+    if "full_run_log_q" not in st.session_state:
+        st.session_state["full_run_log_q"] = queue.Queue()
+    if "full_run_progress" not in st.session_state:
+        st.session_state["full_run_progress"] = (0, 0)
+    if "full_run_thread" not in st.session_state:
+        st.session_state["full_run_thread"] = None
+    if "full_run_stop" not in st.session_state:
+        st.session_state["full_run_stop"] = threading.Event()
+    if "full_run_logs" not in st.session_state:
+        st.session_state["full_run_logs"] = []
+    if "full_run_start_time" not in st.session_state:
+        st.session_state["full_run_start_time"] = None
+    if "full_run_end_time" not in st.session_state:
+        st.session_state["full_run_end_time"] = None
+    # Verrou anti-boucle pour le rerun final du fragment
+    if "_full_run_final_rerun_done" not in st.session_state:
+        st.session_state["_full_run_final_rerun_done"] = False
+
+
+# ---------------------------------------------------------------------------
+# Run complet — Génération + Simulation enchaînées
+# ---------------------------------------------------------------------------
+
+
+def _run_full(
+    config_path: str,
+    stop_event: threading.Event,
+    log_q: queue.Queue,
+    reload: bool = False,
+) -> None:
+    """Cible du thread : simulation complète avec génération des données à la demande.
+
+    simulation_series_from_config() itère sur chaque combinaison (modèle,
+    n_voters, n_candidates) et délègue à simulation_instance() qui gère
+    le cache par série.
+
+    Après la simulation, le résultat total est stocké dans session_state
+    pour un accès immédiat depuis l'onglet Résultats.
+    """
+    from vote_simulation.simulation.simulation import simulation_series_from_config
+    import vote_simulation.simulation.simulation as _sim_module
+    original_sim_tqdm = _sim_module.tqdm  # save for restore
+
+    # Le tqdm extérieur de simulation_series_from_config (par combinaison) est
+    # intercepté par _PatchedTqdm pour mettre à jour la barre de progression.
+    # Les tqdms internes (disable=True dans simulation_instance) sont
+    # court-circuités par le garde self.disable → hot loop identique au notebook.
+    class _PatchedTqdm(original_sim_tqdm):  # type: ignore[misc]
+        def __init__(self, *args, **kwargs) -> None:
+            import io
+            kwargs["file"] = io.StringIO()
+            super().__init__(*args, **kwargs)
+            self._last_st_update: float = 0.0
+
+        def update(self, n: int = 1) -> bool | None:
+            if self.disable:
+                return None  # tqdms internes (disable=True) → no-op identique au notebook
+            self.n += n
+            if stop_event.is_set():
+                self.close()
+                raise InterruptedError("Run complet annulé.")
+            now = time.monotonic()
+            if now - self._last_st_update >= 0.15:
+                total = self.total or 0
+                st.session_state["full_run_progress"] = (min(self.n, total), total)
+                self._last_st_update = now
+            return None
+
+    _sim_module.tqdm = _PatchedTqdm  # corrige la liaison `from tqdm import tqdm` dans simulation.py uniquement
+    # Note : on ne remplace PAS tqdm_module.tqdm globalement pour ne pas affecter
+    # svvamp et d'autres bibliothèques (overhead de verrou à chaque update interne).
+    # sys.stdout n'est pas redirigé : le remplacement est global (pas thread-local)
+    # et ralentirait tous les print() de tous les threads pendant la simulation.
+
+    try:
+        total_result = simulation_series_from_config_2(
+            config_path, reload=reload, compute_metrics=True,
+        )
+        st.session_state["sim_total_result"] = total_result
+        # Force la barre à 100 % (le dernier tick peut être throttlé)
+        _cur_total = st.session_state.get("full_run_progress", (0, 1))[1]
+        st.session_state["full_run_progress"] = (_cur_total, _cur_total)
+
+        log_q.put("Run complet terminé.")
+        st.session_state["full_run_done"] = True
+        st.session_state["full_run_error"] = None
+        st.session_state["global_status"] = "Terminé"
+    except InterruptedError as exc:
+        log_q.put(f"Annulé : {exc}")
+        st.session_state["full_run_done"] = True
+        st.session_state["full_run_error"] = "Annulé"
+        st.session_state["global_status"] = "Annulé"
+    except Exception as exc:
+        log_q.put(f"Erreur : {exc}")
+        st.session_state["full_run_done"] = True
+        st.session_state["full_run_error"] = str(exc)
+        st.session_state["global_status"] = "Erreur"
+    finally:
+        _sim_module.tqdm = original_sim_tqdm
+        st.session_state["full_run_running"] = False
+        st.session_state["full_run_end_time"] = time.monotonic()
+
+
+# ---------------------------------------------------------------------------
+# Barre globale
+# ---------------------------------------------------------------------------
+
+def _render_global_bar() -> None:
+    """Affiche la barre de statut globale persistante en haut de page."""
+    cfg: dict = st.session_state["cfg"]
+    status: str = st.session_state.get("global_status", "Prêt")
+    toml_path: str = st.session_state.get("toml_active_path") or "Aucune config chargée"
+    is_running: bool = (
+        st.session_state.get("full_run_running", False)
+        or st.session_state.get("gen_running", False)
+        or st.session_state.get("sim_running", False)
+    )
+
+    # Calcul du statut global à partir des sous-états
+    if st.session_state.get("gen_running") or st.session_state.get("sim_running"):
+        if st.session_state.get("gen_running"):
+            status = "Génération en cours…"
+        else:
+            status = "Simulation en cours…"
+    elif st.session_state.get("full_run_running"):
+        status = "Run complet en cours…"
+
+    st.session_state["global_status"] = status
+
+    col_status, col_toml, col_reload, col_run = st.columns([2, 3, 2, 2])
+
+    with col_status:
+        color = "#28a745" if "Prêt" in status or "Terminé" in status else (
+            "#dc3545" if "Erreur" in status or "Annulé" in status else "#fd7e14"
+        )
+        st.markdown(
+            f'<div style="padding:8px 12px; border-radius:6px; background:{color}20; '
+            f'border-left:4px solid {color}; font-weight:bold; color:{color};">'
+            f'● {status}</div>',
+            unsafe_allow_html=True,
+        )
+
+    with col_toml:
+        st.markdown(
+            f'<div style="padding:8px 12px; border-radius:6px; background:#f0f2f6; '
+            f'font-family:monospace; font-size:0.85em; color:#444;">TOML actif : {toml_path}</div>',
+            unsafe_allow_html=True,
+        )
+
+    with col_reload:
+        st.checkbox(
+            "Recalcul forcé",
+            key="global_full_reload",
+            help="Recalcule même si les résultats de simulation existent déjà (reload).",
+            disabled=is_running,
+        )
+
+    with col_run:
+        full_run_disabled = is_running or not cfg.get("generative_models") or not cfg.get("rule_codes")
+        if st.button(
+            "Run complet",
+            disabled=full_run_disabled,
+            type="primary",
+            key="global_full_run",
+            help="Enchaîne Génération → Simulation avec la configuration courante.",
+            use_container_width=True,
+        ):
+            # Validation défensive — le bouton est normalement désactivé si ces champs
+            # sont vides, mais une corruption de session_state peut les vider entre
+            # deux renders. On vérifie avant de lancer le thread pour éviter une erreur
+            # peu lisible depuis load_simulation_config().
+            if not cfg.get("rule_codes"):
+                st.error("La configuration ne contient aucune règle de vote — rechargez le TOML.")
+                st.stop()
+            if not cfg.get("generative_models"):
+                st.error("La configuration ne contient aucun modèle génératif — rechargez le TOML.")
+                st.stop()
+
+            # Invalider les caches de résultats de la session précédente.
+            # L'onglet Résultats utilisera sim_total_result (construit en mémoire)
+            # au lieu de relire les Parquet depuis le disque.
+            st.session_state.pop("sim_total_result", None)
+            for _k in [k for k in st.session_state if k.startswith("_res_total_")]:
+                del st.session_state[_k]
+            for _k in [k for k in st.session_state if k.startswith("_scan_struct_")]:
+                del st.session_state[_k]
+
+            stop_event = threading.Event()
+            log_q: queue.Queue = queue.Queue()
+            st.session_state["full_run_stop"] = stop_event
+            st.session_state["full_run_log_q"] = log_q
+            st.session_state["full_run_running"] = True
+            st.session_state["full_run_done"] = False
+            st.session_state["full_run_error"] = None
+            st.session_state["full_run_logs"] = []
+            st.session_state["_full_run_final_rerun_done"] = False  # permet le rerun final
+            # Pré-calculer le nombre de combinaisons (model × voters × candidates)
+            # pour afficher la barre avant le premier tick du thread.
+            _pre_total = max(
+                len(cfg.get("generative_models", []))
+                * len(cfg.get("voters", []))
+                * len(cfg.get("candidates", [])),
+                1,
+            )
+            st.session_state["full_run_progress"] = (0, _pre_total)
+            st.session_state["global_status"] = "Run complet en cours…"
+
+            tmp_path = write_temp_toml(cfg, base_dir=st.session_state.get("cfg_base_dir"))
+
+            _reload = st.session_state.get("global_full_reload", False)
+            t = threading.Thread(
+                target=_run_full,
+                args=(tmp_path, stop_event, log_q, _reload),
+                daemon=True,
+            )
+            add_script_run_ctx(t, get_script_run_ctx())
+            t.start()
+            st.session_state["full_run_thread"] = t
+            st.session_state["full_run_start_time"] = time.monotonic()
+            st.session_state["full_run_end_time"] = None
+            st.rerun()
+
+    # Feedback du Run complet
+    if st.session_state.get("full_run_running") or st.session_state.get("full_run_done"):
+        _render_full_run_feedback()
+
+
+def _fmt_duration(seconds: float) -> str:
+    """Formate une durée en secondes en chaîne lisible (Xm Ys ou Xs)."""
+    s = int(seconds)
+    h, rem = divmod(s, 3600)
+    m, sec = divmod(rem, 60)
+    if h:
+        return f"{h}h {m:02d}m {sec:02d}s"
+    if m:
+        return f"{m}m {sec:02d}s"
+    return f"{sec}s"
+
+
+@st.fragment(run_every=1)
+def _render_full_run_feedback() -> None:
+    """Feedback inline pour le Run complet.
+
+    Fragment Streamlit (run_every=1 s) : seule cette section se ré-exécute
+    chaque seconde, sans relancer les 4 onglets.  Cela libère quasi-totalement
+    le GIL au profit du thread de simulation et supprime la compétition CPU
+    responsable du ralentissement ×10 observé avec l'ancien time.sleep+rerun.
+
+    Un unique rerun complet est déclenché en fin de run pour mettre à jour
+    le statut global, réactiver le bouton, etc.
+    """
+    is_running: bool = st.session_state.get("full_run_running", False)
+    is_done: bool = st.session_state.get("full_run_done", False)
+    error: str | None = st.session_state.get("full_run_error")
+    progress_tuple: tuple = st.session_state.get("full_run_progress", (0, 0))
+
+    log_q: queue.Queue = st.session_state["full_run_log_q"]
+    new_msgs = []
+    try:
+        while True:
+            new_msgs.append(log_q.get_nowait())
+    except queue.Empty:
+        pass
+    if new_msgs:
+        st.session_state["full_run_logs"].extend(new_msgs)
+
+    # ── Barre de progression + timer ──────────────────────────────────────
+    current, total = progress_tuple
+    start_t: float | None = st.session_state.get("full_run_start_time")
+    end_t: float | None = st.session_state.get("full_run_end_time")
+
+    if total > 0:
+        frac = min(current / total, 1.0)
+        # Construire le label avec timer
+        if is_running and start_t is not None:
+            elapsed = time.monotonic() - start_t
+            elapsed_str = _fmt_duration(elapsed)
+            if current > 0:
+                eta = elapsed / current * (total - current)
+                label = f"Run complet : {current}/{total} — ⏱ {elapsed_str} écoulé · ETA ~{_fmt_duration(eta)}"
+            else:
+                label = f"Run complet : {current}/{total} — ⏱ {elapsed_str} écoulé"
+        elif is_done and start_t is not None and end_t is not None:
+            elapsed_str = _fmt_duration(end_t - start_t)
+            label = f"Run complet : {current}/{total} — terminé en {elapsed_str}"
+        else:
+            label = f"Run complet : {current}/{total}"
+        st.progress(frac, text=label)
+    elif is_running:
+        # Barre indéterminée immédiatement après le clic (pas encore de tqdm tick)
+        elapsed_str = _fmt_duration(time.monotonic() - start_t) if start_t else ""
+        st.progress(0.0, text=f"Run complet en cours… {elapsed_str}")
+
+    if st.session_state["full_run_logs"]:
+        with st.expander("Logs du Run complet", expanded=False):
+            st.text_area(
+                "Logs",
+                value="\n".join(st.session_state["full_run_logs"][-200:]),
+                height=150,
+                disabled=True,
+                label_visibility="collapsed",
+                key="full_run_log_area",
+            )
+
+    if is_done and not is_running:
+        if error and error != "Annulé":
+            st.error(f"Run complet — Erreur : {error}")
+        elif error == "Annulé":
+            st.warning("Run complet annulé.")
+        else:
+            st.success("Run complet terminé — consultez l'onglet Résultats.")
+
+    if is_running:
+        t: threading.Thread | None = st.session_state.get("full_run_thread")
+        if t is not None and not t.is_alive():
+            # Thread terminé mais flag pas encore remis à False — correction défensive.
+            st.session_state["full_run_running"] = False
+
+    # ── Rerun complet unique à la fin du run ─────────────────────────────────
+    # Déclenché une seule fois quand is_done passe à True pour que le reste de
+    # la page (statut global, bouton, onglet Résultats) soit rafraîchi.
+    if is_done and not is_running:
+        if not st.session_state.get("_full_run_final_rerun_done", False):
+            st.session_state["_full_run_final_rerun_done"] = True
+            st.rerun()  # rerun complet (hors fragment) — une seule fois
+
+
+# ---------------------------------------------------------------------------
+# Point d'entrée principal
+# ---------------------------------------------------------------------------
+
+def main() -> None:
+    _init_session()
+
+    # En-tête
+    st.title("vote_simulation")
+    st.markdown("---")
+
+    # Barre globale
+    _render_global_bar()
+    st.markdown("---")
+
+    # 4 onglets principaux
+    tab_cfg, tab_gen, tab_sim, tab_res = st.tabs([
+        "Configuration",
+        "Données",
+        "Simulation",
+        "Résultats",
+    ])
+
+    with tab_cfg:
+        render_tab_config()
+
+    with tab_gen:
+        render_tab_generation()
+
+    with tab_sim:
+        render_tab_simulation()
+
+    with tab_res:
+        render_tab_results()
+
+
+if __name__ == "__main__":
+    main()

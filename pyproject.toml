@@ -29,6 +29,8 @@ dependencies = [
   "tqdm>=4.67.3",
   "scikit-learn>=1.8.0",
   "nashpy>=0.0.43",
+  "streamlit>=1.57.0",
+  "tomli-w>=1.2.0",
 ]
 requires-python = ">= 3.12, < 3.15"
 
@@ -61,6 +63,7 @@ homepage = "https://github.com/Damidas0/vote_simulation"
 
 [project.scripts]
 vote_simulation = "vote_simulation.cli:app"
+vote-sim-ui = "vote_simulation.ui:launch"
 
 [tool.ty]
 # All rules are enabled as "error" by default; no need to specify unless overriding.

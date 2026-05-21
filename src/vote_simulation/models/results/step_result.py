@@ -170,8 +170,10 @@ class SimulationStepResult:
     def save_to_file(self, file_path: str) -> None:
         """Save the step result to a parquet file.
 
-        Configuration metadata is stored via pyarrow schema metadata so that
-        the payload columns remain compact ("Rule" + "Winner" only).
+        Configuration metadata is stored via pyarrow schema metadata.
+        Winner-quality metrics are stored as additional columns so that they
+        survive the disk round-trip and can be accumulated by
+        :class:`SimulationSeriesResult` after loading.
 
         Args:
             file_path: Path to the output parquet file.
@@ -179,8 +181,14 @@ class SimulationStepResult:
         import pyarrow as pa
         import pyarrow.parquet as pq
 
-        rows = [(rule, winner) for rule, winners in self.winners_by_rule.items() for winner in winners]
-        df = pd.DataFrame(rows, columns=pd.Index(["Rule", "Winner"]))
+        rows = []
+        nan_metrics = {f: float("nan") for f in METRIC_FIELDS}
+        for rule, winners in self.winners_by_rule.items():
+            metrics = self._metrics_by_rule.get(rule)
+            metric_vals = metrics.to_dict() if metrics is not None else nan_metrics
+            for winner in winners:
+                rows.append({"Rule": rule, "Winner": winner, **metric_vals})
+        df = pd.DataFrame(rows, columns=pd.Index(["Rule", "Winner"] + list(METRIC_FIELDS)))
         table = pa.Table.from_pandas(df, preserve_index=False)
 
         # Inject config into schema metadata (prefixed to avoid collisions).
@@ -195,6 +203,8 @@ class SimulationStepResult:
         """Load the step result from a parquet file.
 
         Reads configuration metadata from the parquet schema when available.
+        Winner-quality metrics are restored from metric columns when present
+        (files written before this feature are loaded without metrics).
 
         Args:
             file_path: Path to the parquet file containing the step result.
@@ -219,6 +229,30 @@ class SimulationStepResult:
         self._winner_sets_by_rule = {}
         self._distance_matrix = np.zeros((0, 0), dtype=np.float32)
         self._metrics_by_rule = {}
+
+        # Restore per-rule metrics when the parquet file contains metric columns
+        # (backward-compatible: old files without those columns are silently skipped).
+        if all(c in df.columns for c in METRIC_FIELDS):
+            first_rows = df.groupby("Rule", sort=False).first()
+            for rule_code, row in first_rows.iterrows():
+                if pd.isna(row.get("social_acceptability")):
+                    continue
+                try:
+                    self._metrics_by_rule[str(rule_code)] = WinnerMetrics(
+                        social_acceptability=float(row["social_acceptability"]),
+                        utility_mean=float(row["utility_mean"]),
+                        utility_median=float(row["utility_median"]),
+                        utility_var=float(row["utility_var"]),
+                        rank_mean=float(row["rank_mean"]),
+                        rank_median=float(row["rank_median"]),
+                        rank_var=float(row["rank_var"]),
+                        freq_first=float(row["freq_first"]),
+                        freq_last=float(row["freq_last"]),
+                        has_tie=bool(row["has_tie"]),
+                        n_cowinners=int(row["n_cowinners"]),
+                    )
+                except (TypeError, ValueError, KeyError):
+                    pass
 
         for rule_code, winners in loaded_winners.items():
             self.add_method_result(str(rule_code), winners)

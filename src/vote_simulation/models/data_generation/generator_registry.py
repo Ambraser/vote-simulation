@@ -132,10 +132,14 @@ def normalize_between_0_and_1(profile: Profile) -> Profile:
 
 
 def _seed(seed: int, iteration: int = 0) -> None:
-    """Set global numpy + svvamp seeds for reproducibility."""
-    effective = seed + iteration
-    np.random.seed(effective)  # noqa: NPY002
-    initialize_random_seeds(effective)
+    """Set global numpy + svvamp seeds for reproducibility.
+
+    Uses ``seed * 100_000 + iteration`` to avoid collisions between
+    different base seeds that share the same ``seed + iteration`` sum.
+    """
+    effective = seed * 100_000 + iteration
+    np.random.seed(effective % (2**31))  # noqa: NPY002
+    initialize_random_seeds(effective % (2**31))
 
 
 # Candidate labels helper

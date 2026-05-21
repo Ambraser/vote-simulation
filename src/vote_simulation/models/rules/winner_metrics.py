@@ -166,7 +166,7 @@ def compute_winner_metrics(
     utility_median = float(np.median(ut_flat))
     utility_var = float(ut_flat.var())
 
-    # Rank metrics                                                         
+    # Rank metrics
     # preferences_borda_rk[v, c] = n_c - 1 - (0-based rank)
     # 1-based rank = n_c - preferences_borda_rk[v, c]
     borda_rk: np.ndarray = np.asarray(profile.preferences_borda_rk, dtype=int)[:, idx]  # (n_v, n_w)
@@ -177,7 +177,7 @@ def compute_winner_metrics(
     rank_median = float(np.median(ranks_flat))
     rank_var = float(ranks_flat.var())
 
-    # First / last frequency                                          
+    # First / last frequency
     # preferences_borda_rk[v, c] == n_c - 1  ---  candidate c is ranked 1st by voter v
     # preferences_borda_rk[v, c] == 0         --- candidate c is ranked last by voter v
     freq_first = float(np.any(borda_rk == n_c - 1, axis=1).mean())

@@ -447,7 +447,6 @@ class SimulationSeriesResult:
         """Plot rules as labeled points in a 2D MDS projection.
 
         Distances between points approximate mean pairwise rule distances.
-        The normalized MDS stress is shown on the plot.
 
         Args:
             ax: Optional matplotlib Axes to draw on. A new figure is created
@@ -492,7 +491,7 @@ class SimulationSeriesResult:
             )
 
         title = self._build_title("Rule proximity map")
-        title += f"\nMDS stress: {stress:.4f}"
+        #title += f"\nMDS stress: {stress:.4f}"
         ax.set_title(title, fontsize=11, pad=10)
         ax.set_xlabel("MDS 1", fontsize=9, color="#555555")
         ax.set_ylabel("MDS 2", fontsize=9, color="#555555")

@@ -89,16 +89,19 @@ if __name__ == "__main__":
         preferences_rk=np.array([[0, 1, 2], [0, 1, 2], [0, 2, 1]]),
         labels_candidates=["A", "B", "C"],
     )
+
     r1 = BucklinResult(p1)
     print("Case 1 — clear majority winner:")
     print("  scores_:\n", r1._inner.scores_)
     print("  cowinners_:", r1.cowinners_)  # expected: ['A']
 
     # Case 2: tie at deciding round — two candidates share max above n_v/2
+    
     p2 = Profile(
         preferences_rk=np.array([[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0]]),
         labels_candidates=["A", "B", "C"],
     )
+    p2.demo()
     r2 = BucklinResult(p2)
     print("\nCase 2 — tie at deciding round:")
     print("  scores_:\n", r2._inner.scores_)

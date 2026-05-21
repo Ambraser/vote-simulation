@@ -3,8 +3,8 @@
 Workflow
 --------
 1. Read the TOML configuration.
-2. For each generative model × (n_voters, n_candidates) × iteration:
-   a. Check if the generated profile already exists on disk → load it.
+2. For each generative model x n_voters x n_candidates x iteration:
+   a. Check if the generated profile already exists on disk : load it.
    b. If not, generate it via the generator registry and persist it.
 3. Apply every rule to each profile and collect winners.
 4. Persist the simulation results to ``sim_result/``.
@@ -23,6 +23,7 @@ The directory layout follows::
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from svvamp import Profile
 from tqdm import tqdm
@@ -63,25 +64,35 @@ def obtain_data_instance(
     seed: int = 161,
     base_path: str = "data",
     extra_params: dict[str, object] | None = None,
+    reload: bool = False,
 ) -> DataInstance:
     """Load a cached profile or generate + persist it.
 
-    If the parquet file already exists the profile is loaded from disk;
-    otherwise it is generated and saved for future reuse.
+    If the parquet file already exists AND *reload* is False, the profile
+    is loaded from disk; otherwise it is (re-)generated with the given seed
+    and saved for future reuse.
 
     Args:
         model: Generative model code (e.g. "UNI", "IC").
         n_v: Number of voters.
         n_c: Number of candidates.
         iteration: Iteration index.
-        seed: Random seed for generation (will be combined with iteration index for variability).
+        seed: Random seed for generation (combined with iteration for uniqueness).
         base_path: Root folder for generated data (see config.output_base_path).
         extra_params: Optional dict of extra parameters to pass to the generator (per-model).
+        reload: When True, ignore any existing cached file and regenerate from
+            the seed.  Use this whenever the seed changes to ensure the new
+            seed is actually applied.
     """
     gen_path = _gen_dir(base_path, model, n_v, n_c) / _iter_filename(iteration)
 
-    if gen_path.is_file():
-        return DataInstance(str(gen_path))
+    # Single stat() call instead of is_file() + stat() (2 syscalls → 1).
+    if not reload:
+        try:
+            if gen_path.stat().st_size > 0:
+                return DataInstance(str(gen_path))
+        except FileNotFoundError:
+            pass
 
     # Generate
     di = DataInstance.from_generator(
@@ -225,7 +236,13 @@ def simulation_step(
     return step_result
 
 
-def simulation_from_config(config_path: str, show_progress: bool = True, *, compute_metrics: bool = True) -> None:
+def simulation_from_config(
+    config_path: str,
+    show_progress: bool = True,
+    *,
+    reload: bool = False,
+    compute_metrics: bool = True,
+) -> None:
     """Full pipeline: generate profiles, apply rules, save results.
 
     For every ``(model, n_voters, n_candidates, iteration)`` combination:
@@ -236,20 +253,45 @@ def simulation_from_config(config_path: str, show_progress: bool = True, *, comp
     Args:
         config_path: Path to the TOML configuration file (see docs for the template).
         show_progress: Whether to display a progress bar.
+        reload: When ``True``, ignore any cached result files and recompute
+            every iteration from scratch.  When ``False`` (default), iterations
+            whose result file already exists are skipped.
         compute_metrics: Whether to compute :class:`~vote_simulation.models.rules.WinnerMetrics`
             for each rule.  Defaults to ``True``.
     """
     config = load_simulation_config(config_path)
     _validate_generation_config(config)
 
-    total = len(config.generative_models) * len(config.voters or []) * len(config.candidates or []) * config.iterations
-    print(f"Running full simulation: {total} profile(s) × {len(config.rule_codes)} rule(s)")
+    # Pre-fetch rule builders once before any loop.
+    # config.rule_codes are already normalised by load_simulation_config, so no
+    # .strip().upper() needed here.  Avoids len(rules) × total_iterations
+    # redundant dict lookups + string operations in the hot path.
+    # Unknown codes are warned once and skipped (graceful degradation).
+    builders: list[tuple[str, Any]] = []
+    for code in config.rule_codes:
+        try:
+            builders.append((code, get_rule_builder(code)))
+        except ValueError:
+            print(f"Warning: unknown rule code '{code}' — skipped.")
+
+    total = (
+        len(config.generative_models)
+        * len(config.voters or [])
+        * len(config.candidates or [])
+        * config.iterations
+    )
+    print(f"Running full simulation: {total} profile(s) × {len(builders)} rule(s)")
 
     with tqdm(total=total, desc="Simulating", disable=not show_progress) as pbar:
         for model in config.generative_models:
             extra = config.generator_params.get(model, {})
             for n_v in config.voters or []:
                 for n_c in config.candidates or []:
+                    # Create output directory ONCE per (model, n_v, n_c) combo,
+                    # not 1 000 times inside the iteration loop.
+                    sim_dir = _sim_dir(config.output_base_path, model, n_v, n_c)
+                    sim_dir.mkdir(parents=True, exist_ok=True)
+
                     step_cfg = ResultConfig.single(
                         gen_model=model,
                         n_voters=n_v,
@@ -257,7 +299,18 @@ def simulation_from_config(config_path: str, show_progress: bool = True, *, comp
                         rules_codes=config.rule_codes,
                     )
                     for it in range(config.iterations):
-                        # 1) Obtain data
+                        result_path = sim_dir / _iter_filename(it)
+
+                        # Single stat() call instead of is_file() + stat() (2 syscalls → 1).
+                        if not reload:
+                            try:
+                                if result_path.stat().st_size > 0:
+                                    pbar.update(1)
+                                    continue
+                            except FileNotFoundError:
+                                pass
+
+                        # 1) Obtain (generate or load) profile
                         di = obtain_data_instance(
                             model=model,
                             n_v=n_v,
@@ -266,14 +319,32 @@ def simulation_from_config(config_path: str, show_progress: bool = True, *, comp
                             seed=config.seed,
                             base_path=config.output_base_path,
                             extra_params=extra,
+                            reload=reload,
                         )
 
-                        # 2) Apply rules
-                        step = run_rules_on_instance(di, config.rule_codes, config=step_cfg, compute_metrics=compute_metrics)
+                        # 2) Apply rules using pre-fetched builders (inline hot path)
+                        profile = di.profile
+                        step = SimulationStepResult(
+                            data_source=di.file_path,
+                            config=step_cfg,
+                        )
+                        for code, builder in builders:
+                            try:
+                                rule = builder(profile, None)
+                                winners = rule.cowinners_
+                                if compute_metrics:
+                                    try:
+                                        metrics = rule.compute_metrics()
+                                        step.add_method_result_with_metrics(code, winners, metrics)
+                                    except Exception:
+                                        step.add_method_result(code, winners)
+                                else:
+                                    step.add_method_result(code, winners)
+                            except Exception as e:  # noqa: BLE001
+                                print(f"Error applying rule '{code}': {e}")
+                                step.add_method_result(code, [f"ERROR: {e}"])
 
                         # 3) Save result
-                        result_path = _sim_dir(config.output_base_path, model, n_v, n_c) / _iter_filename(it)
-                        result_path.parent.mkdir(parents=True, exist_ok=True)
                         step.save_to_file(str(result_path))
 
                         pbar.update(1)
@@ -292,6 +363,7 @@ def simulation_instance(
     reload: bool = False,
     show_progress: bool = True,
     *,
+    extra_params: dict[str, object] | None = None,
     compute_metrics: bool = True,
 ) -> SimulationSeriesResult:
     """Run the workflow on a single (model, voters, candidates) instance.
@@ -317,13 +389,16 @@ def simulation_instance(
         base_path: Root folder for generated data. Defaults to ``"data"``.
         reload: Force re-computation (ignore cache). Defaults to False.
         show_progress: Whether to display progress bars. Defaults to True.
+        extra_params: Optional dict of extra generator parameters (e.g.
+            ``{"vmf_concentration": 100.0}``). Passed to
+            :func:`obtain_data_instance` on cache miss. Defaults to ``None``.
         compute_metrics: Whether to compute :class:`~vote_simulation.models.rules.WinnerMetrics`
             for each rule.  Defaults to ``True``.  Set to ``False`` to skip
             metric computation when only winner distances are needed.
     Returns:
         SimulationSeriesResult with attached :attr:`config` including all rules.
     """
-    # Build configs: one without rules (for cache key), one with
+    # Build the base config (cache key, excludes rules)
     gen_code = gen_code.strip().upper()
     base_config = ResultConfig.single(
         gen_model=gen_code,
@@ -331,16 +406,26 @@ def simulation_instance(
         n_candidates=n_c,
         n_iterations=n_iteration,
     )
+
+    # Pre-build rule builders once before any loop (mirrors simulation_from_config).
+    # Unknown codes are warned once and skipped; avoids per-iteration exceptions,
+    # error-message formatting (sorted string of 68+ codes), and queue.put() calls.
+    valid_builders: list[tuple[str, Any]] = []
+    for code in [r.strip().upper() for r in rule_codes]:
+        try:
+            valid_builders.append((code, get_rule_builder(code)))
+        except ValueError:
+            print(f"Warning: unknown rule code '{code}' — skipped.")
+    valid_rule_codes = [code for code, _ in valid_builders]
+
+    # full_config uses only valid rules so the cache key is accurate.
     full_config = ResultConfig.single(
         gen_model=gen_code,
         n_voters=n_v,
         n_candidates=n_c,
         n_iterations=n_iteration,
-        rules_codes=[r.strip().upper() for r in rule_codes],
+        rules_codes=valid_rule_codes,
     )
-
-    # Normalize rule codes
-    normalized_rules = [r.strip().upper() for r in rule_codes]
 
     # --- Cache check with partial-load support ---
     cache_path = Path(base_path) / "results" / f"{base_config.label}.parquet"
@@ -356,7 +441,7 @@ def simulation_instance(
         #        else:
         # Cache is valid for base parameters
         cached_rules = set(cached.config.rules_codes)
-        requested_rules = set(normalized_rules)
+        requested_rules = set(valid_rule_codes)
 
         if cached_rules == requested_rules:
             # Perfect match! Return cached series
@@ -376,7 +461,7 @@ def simulation_instance(
                 n_voters=n_v,
                 n_candidates=n_c,
                 n_iterations=n_iteration,
-                rules_codes=normalized_rules,
+                rules_codes=valid_rule_codes,
             )
             # Save updated series with new rules
             cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -392,7 +477,7 @@ def simulation_instance(
 
     # --- No valid cache: compute from scratch ---
     # print(
-    #    f"Running simulation: {base_config.description} × {n_iteration} iterations with {len(normalized_rules)} rules"
+    #    f"Running simulation: {base_config.description} × {n_iteration} iterations with {len(valid_rule_codes)} rules"
     # )
     series = SimulationSeriesResult()
     with tqdm(total=n_iteration, desc="Simulating", disable=not show_progress) as pbar:
@@ -404,8 +489,28 @@ def simulation_instance(
                 iteration=it,
                 seed=seed,
                 base_path=base_path,
+                extra_params=extra_params or {},
+                reload=reload,
             )
-            step = run_rules_on_instance(di, normalized_rules, config=base_config, compute_metrics=compute_metrics)
+            # Inline hot loop using pre-built builders (mirrors simulation_from_config).
+            # Avoids per-iteration get_rule_builder() calls and exception overhead.
+            profile = di.profile
+            step = SimulationStepResult(data_source=di.file_path, config=base_config)
+            for code, builder in valid_builders:
+                try:
+                    rule: RuleResult = builder(profile, None)
+                    winners = rule.cowinners_
+                    if compute_metrics:
+                        try:
+                            metrics = rule.compute_metrics()
+                            step.add_method_result_with_metrics(code, winners, metrics)
+                        except Exception:
+                            step.add_method_result(code, winners)
+                    else:
+                        step.add_method_result(code, winners)
+                except Exception as e:  # noqa: BLE001
+                    print(f"Error applying rule '{code}': {e}")
+                    step.add_method_result(code, [f"ERROR: {e}"])
             series.add_step(step)
             pbar.update(1)
 
@@ -418,8 +523,7 @@ def simulation_instance(
     # print(f"Simulation completed — cached to {cache_path}")
     return series
 
-
-def simulation_series_from_config(
+def simulation_series_from_config_2(
     config_path: str,
     reload: bool = False,
     *,
@@ -464,6 +568,59 @@ def simulation_series_from_config(
                     )
                     total_result.add_series(series)
                     pbar.update(1)
+
+    print(f"Completed {total_result.series_count} simulation series.")
+    return total_result
+
+def simulation_series_from_config(
+    config_path: str,
+    reload: bool = False,
+    *,
+    compute_metrics: bool = True,
+) -> SimulationTotalResult:
+    """Run simulation instances for every combination in the config.
+
+    Iterates over each ``(model, n_voters, n_candidates)`` triplet defined
+    in the TOML configuration, delegates to :func:`simulation_instance`,
+    and collects all resulting series into a :class:`SimulationTotalResult`.
+
+    Séquentiel — le travail est CPU-bound Python (svvamp) ; le GIL empêche
+    toute parallélisation réelle via ThreadPoolExecutor.
+    En mode UI (Streamlit), le tqdm externe est intercepté par ``_PatchedTqdm``
+    pour mettre à jour la barre de progression sans toucher à la hot loop.
+
+    Args:
+        config_path: Path to the TOML configuration file.
+        reload: Force re-computation (ignore cache). Defaults to False.
+        compute_metrics: Whether to compute :class:`~vote_simulation.models.rules.WinnerMetrics`
+            for each rule.  Defaults to ``True``.
+
+    Returns:
+        A :class:`SimulationTotalResult` containing one series per
+        ``(model, voters, candidates)`` combination.
+    """
+    config = load_simulation_config(config_path)
+    _validate_generation_config(config)
+
+    total_result = SimulationTotalResult()
+    combos = [
+        (model, config.generator_params.get(model, {}), n_v, n_c)
+        for model in config.generative_models
+        for n_v in (config.voters or [])
+        for n_c in (config.candidates or [])
+    ]
+    n_combos = len(combos)
+
+    with tqdm(total=n_combos, desc="Running simulation series") as pbar:
+        for model, extra, n_v, n_c in combos:
+            total_result.add_series(simulation_instance(
+                gen_code=model, n_v=n_v, n_c=n_c,
+                rule_codes=config.rule_codes, n_iteration=config.iterations,
+                seed=config.seed, base_path=config.output_base_path,
+                reload=reload, show_progress=False,
+                extra_params=extra, compute_metrics=compute_metrics,
+            ))
+            pbar.update(1)
 
     print(f"Completed {total_result.series_count} simulation series.")
     return total_result

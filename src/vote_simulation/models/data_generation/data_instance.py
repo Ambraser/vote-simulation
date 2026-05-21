@@ -12,12 +12,14 @@ from svvamp import Profile
 
 try:
     from scipy.cluster.hierarchy import leaves_list, linkage
+
     _HAS_SCIPY = True
 except ImportError:
     _HAS_SCIPY = False
 
 try:
     import matplotlib.pyplot as plt
+
     _HAS_MPL = True
 except ImportError:
     _HAS_MPL = False
@@ -289,7 +291,7 @@ class DataInstance:
     def n_candidates(self) -> int:
         """Number of candidates in this instance."""
         return int(self.data.shape[1])
-    
+
     @staticmethod
     def _cluster_order(matrix: np.ndarray, axis: int, method: str = "average", metric: str = "euclidean") -> np.ndarray:
         """Return the reordered indices of rows or columns via hierarchical clustering.
@@ -311,8 +313,6 @@ class DataInstance:
         data = matrix.T if axis == 1 else matrix
         lnk = linkage(data, method=method, metric=metric)
         return leaves_list(lnk)
-
-    
 
     def plot_heatmap(
         self,
@@ -426,6 +426,7 @@ class DataInstance:
             "row_order": row_order,
             "col_order": col_order,
         }
+
 
 if __name__ == "__main__":
     # Example usage:

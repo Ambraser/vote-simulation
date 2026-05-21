@@ -10,10 +10,11 @@ generative_models = ["VMF_HC"]
 # ACTIVE RULE SET - Choose one set below by uncommenting
 # -------------------------------------------------------------------
 
-# *** QUICK TEST SET (15 rules) ***
+# *** QUICK TEST SET (8 rules) ***
+# Note: PV-* codes (PV-IR, PV-BALD, etc.) are NOT registered in the rule registry
+# and would be silently skipped. Removed to avoid log spam and inflated results.
 rule_codes = [
-    "PLU1", "HARE", "BORD", "COOM", "BALD", "COPE", "SCHU", "MMAX",
-    "PV-IR", "PV-BALD", "PV-COMB", "PV-NANS", "PV-CIRV", "PV-DAUN", "PV-BMF"
+    "PLU1", "HARE", "BORD", "COOM", "BALD", "COPE", "SCHU", "MMAX"
 ]
 
 # *** UNCOMMENT BELOW FOR OTHER SETS ***

@@ -1,0 +1,24 @@
+[simulation]
+# Root directory for gen/ and sim_result/
+output_base_path = "../data/"
+
+# Data generation models
+# Available: UNI, IC, IANC, EUCLID, GAUSS, LADDER, SPHEROID, PERTURB, UNANIMOUS, UFR, VMF_HC, VMF_HS
+generative_models = ["UNI", "EUCLID_3D", "EUCLID"]
+
+
+# Voting methods to execute
+# Available : "RV", "MJ", "AP_T", "BUCK_I", "BUCK_R", "BORD", "STAR","BLAC","SCHU","COPE", "MMAX", "NANS", "BORD", "COOM", "HARE", "PLU2", "PLU1"
+rule_codes = ["RV", "MJ", "BORD", "STAR", "MMAX", "NANS", "PLU2", "PLU1"]
+
+
+candidates = [5,9]
+
+# Numbers of voters
+voters = [20,100]
+
+# Iterations per (model, voters, candidates) combination
+iterations = 1000
+
+# Seed for reproducibility
+seed = 42
