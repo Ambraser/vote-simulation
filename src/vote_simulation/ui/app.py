@@ -16,13 +16,13 @@ Lancement :
 from __future__ import annotations
 
 import copy
+import multiprocessing as mp
 import queue
 import threading
 import time
 import streamlit as st
 from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ctx
 
-from vote_simulation.simulation.simulation import simulation_series_from_config_2
 from vote_simulation.ui.tab_config import render_tab_config
 from vote_simulation.ui.tab_generation import render_tab_generation
 from vote_simulation.ui.tab_results import render_tab_results
@@ -85,69 +85,129 @@ def _init_session() -> None:
 # ---------------------------------------------------------------------------
 
 
+def _simulation_target(
+    config_path: str,
+    reload: bool,
+    mp_queue: "mp.Queue[tuple]",
+    mp_stop: object,
+) -> None:
+    """Exécuté dans un sous-processus forké — GIL propre, sans concurrence Streamlit.
+
+    Patche le tqdm du module simulation pour émettre des messages de progression
+    via mp_queue. Les tqdms internes (disable=True) restent des no-ops.
+    Envoie enfin ("done", result) ou ("error", msg).
+    """
+    import io
+    import vote_simulation.simulation.simulation as _sim_module
+    from vote_simulation.simulation.simulation import simulation_series_from_config_2
+
+    original_tqdm = _sim_module.tqdm
+
+    class _ProcTqdm(original_tqdm):  # type: ignore[misc]
+        def __init__(self, *args, **kwargs) -> None:
+            kwargs["file"] = io.StringIO()
+            super().__init__(*args, **kwargs)
+
+        def update(self, n: int = 1) -> bool | None:
+            if self.disable:
+                return None
+            self.n += n
+            if mp_stop.is_set():
+                self.close()
+                raise InterruptedError("Annulé")
+            total = self.total or 0
+            mp_queue.put(("progress", min(self.n, total), total))
+            return None
+
+    _sim_module.tqdm = _ProcTqdm
+    try:
+        result = simulation_series_from_config_2(
+            config_path, reload=reload, compute_metrics=True
+        )
+        try:
+            mp_queue.put(("done", result))
+        except Exception:
+            # SimulationTotalResult non-picklable — les résultats restent sur disque
+            mp_queue.put(("done", None))
+    except InterruptedError as exc:
+        mp_queue.put(("cancelled", str(exc)))
+    except Exception as exc:
+        mp_queue.put(("error", str(exc)))
+    finally:
+        _sim_module.tqdm = original_tqdm
+
+
 def _run_full(
     config_path: str,
     stop_event: threading.Event,
     log_q: queue.Queue,
     reload: bool = False,
 ) -> None:
-    """Cible du thread : simulation complète avec génération des données à la demande.
+    """Thread moniteur : lance la simulation dans un sous-processus forké et relaie sa progression.
 
-    simulation_series_from_config() itère sur chaque combinaison (modèle,
-    n_voters, n_candidates) et délègue à simulation_instance() qui gère
-    le cache par série.
-
-    Après la simulation, le résultat total est stocké dans session_state
-    pour un accès immédiat depuis l'onglet Résultats.
+    Le sous-processus dispose de son propre GIL (aucune concurrence avec l'event
+    loop Tornado / asyncio de Streamlit), ce qui lui permet d'atteindre les
+    performances d'exécution d'un notebook — sans aucune modification du code
+    de simulation lui-même.
     """
-    from vote_simulation.simulation.simulation import simulation_series_from_config
-    import vote_simulation.simulation.simulation as _sim_module
-    original_sim_tqdm = _sim_module.tqdm  # save for restore
-
-    # Le tqdm extérieur de simulation_series_from_config (par combinaison) est
-    # intercepté par _PatchedTqdm pour mettre à jour la barre de progression.
-    # Les tqdms internes (disable=True dans simulation_instance) sont
-    # court-circuités par le garde self.disable → hot loop identique au notebook.
-    class _PatchedTqdm(original_sim_tqdm):  # type: ignore[misc]
-        def __init__(self, *args, **kwargs) -> None:
-            import io
-            kwargs["file"] = io.StringIO()
-            super().__init__(*args, **kwargs)
-            self._last_st_update: float = 0.0
-
-        def update(self, n: int = 1) -> bool | None:
-            if self.disable:
-                return None  # tqdms internes (disable=True) → no-op identique au notebook
-            self.n += n
-            if stop_event.is_set():
-                self.close()
-                raise InterruptedError("Run complet annulé.")
-            now = time.monotonic()
-            if now - self._last_st_update >= 0.15:
-                total = self.total or 0
-                st.session_state["full_run_progress"] = (min(self.n, total), total)
-                self._last_st_update = now
-            return None
-
-    _sim_module.tqdm = _PatchedTqdm  # corrige la liaison `from tqdm import tqdm` dans simulation.py uniquement
-    # Note : on ne remplace PAS tqdm_module.tqdm globalement pour ne pas affecter
-    # svvamp et d'autres bibliothèques (overhead de verrou à chaque update interne).
-    # sys.stdout n'est pas redirigé : le remplacement est global (pas thread-local)
-    # et ralentirait tous les print() de tous les threads pendant la simulation.
+    _ctx = mp.get_context("fork")
+    mp_queue: "mp.Queue" = _ctx.Queue()
+    mp_stop: object = _ctx.Event()
+    proc = _ctx.Process(
+        target=_simulation_target,
+        args=(config_path, reload, mp_queue, mp_stop),
+        daemon=True,
+    )
+    proc.start()
+    last_st_update: float = 0.0
 
     try:
-        total_result = simulation_series_from_config_2(
-            config_path, reload=reload, compute_metrics=True,
-        )
-        st.session_state["sim_total_result"] = total_result
-        # Force la barre à 100 % (le dernier tick peut être throttlé)
-        _cur_total = st.session_state.get("full_run_progress", (0, 1))[1]
-        st.session_state["full_run_progress"] = (_cur_total, _cur_total)
+        while True:
+            # Annulation demandée depuis l'UI
+            if stop_event.is_set():
+                mp_stop.set()
+                proc.join(timeout=10)
+                if proc.is_alive():
+                    proc.terminate()
+                    proc.join()
+                raise InterruptedError("Run complet annulé.")
 
-        log_q.put("Run complet terminé.")
-        st.session_state["full_run_done"] = True
-        st.session_state["full_run_error"] = None
-        st.session_state["global_status"] = "Terminé"
+            # Détection de fin anormale (crash du sous-processus sans message)
+            if not proc.is_alive() and mp_queue.empty():
+                ec = proc.exitcode
+                raise RuntimeError(
+                    f"Le processus de simulation s'est terminé inopinément (code {ec})."
+                )
+
+            try:
+                msg = mp_queue.get(timeout=0.2)
+            except queue.Empty:
+                continue
+
+            msg_type = msg[0]
+            if msg_type == "progress":
+                _, current, total = msg
+                now = time.monotonic()
+                if now - last_st_update >= 0.15:
+                    st.session_state["full_run_progress"] = (current, total)
+                    last_st_update = now
+            elif msg_type == "done":
+                result = msg[1]
+                if result is not None:
+                    st.session_state["sim_total_result"] = result
+                _cur_total = st.session_state.get("full_run_progress", (0, 1))[1]
+                st.session_state["full_run_progress"] = (_cur_total, _cur_total)
+                log_q.put("Run complet terminé.")
+                st.session_state["full_run_done"] = True
+                st.session_state["full_run_error"] = None
+                st.session_state["global_status"] = "Terminé"
+                proc.join()
+                return
+            elif msg_type == "cancelled":
+                raise InterruptedError(msg[1])
+            elif msg_type == "error":
+                raise RuntimeError(msg[1])
+
     except InterruptedError as exc:
         log_q.put(f"Annulé : {exc}")
         st.session_state["full_run_done"] = True
@@ -159,7 +219,9 @@ def _run_full(
         st.session_state["full_run_error"] = str(exc)
         st.session_state["global_status"] = "Erreur"
     finally:
-        _sim_module.tqdm = original_sim_tqdm
+        if proc.is_alive():
+            proc.terminate()
+            proc.join()
         st.session_state["full_run_running"] = False
         st.session_state["full_run_end_time"] = time.monotonic()
 
