@@ -750,17 +750,17 @@ class SimulationTotalResult:
         row_range[row_range == 0] = 1.0  # avoid division by zero for constant rows
         normed = (raw - row_min) / row_range
 
-        fig_w = max(10.0, 1.6 * n_r + 2)
-        fig_h = max(6.0, 0.7 * len(fields) + 3.0)  # extra height for bottom colorbar
+        fig_w = max(10.0, 0.7 * len(fields) + 3.0)
+        fig_h = max(6.0, 1.6 * n_r + 2)
         fig, ax = plt.subplots(figsize=(fig_w, fig_h), constrained_layout=True)
 
-        im = ax.imshow(normed, cmap="YlGnBu", vmin=0, vmax=1, interpolation="nearest", aspect="auto")
+        im = ax.imshow(normed.T, cmap="YlGnBu", vmin=0, vmax=1, interpolation="nearest", aspect="auto")
 
-        tick_fs = max(10, min(13, int(200 / max(n_r, 1))))
-        ax.set_xticks(range(n_r), labels=all_rules, rotation=45, ha="right", fontsize=tick_fs)
-        ax.set_yticks(range(len(fields)), labels=[f.replace("_", " ") for f in fields], fontsize=11)
-        ax.set_xlabel("Rule", fontsize=12)
-        ax.set_ylabel("Metric", fontsize=12)
+        tick_fs = max(10, min(13, int(200 / max(len(fields), 1))))
+        ax.set_xticks(range(len(fields)), labels=[f.replace("_", " ") for f in fields], rotation=45, ha="right", fontsize=tick_fs)
+        ax.set_yticks(range(n_r), labels=all_rules, fontsize=11)
+        ax.set_xlabel("Metric", fontsize=12)
+        ax.set_ylabel("Rule", fontsize=12)
 
         # Build title from fixed params info
         n_series = self.series_count
@@ -778,28 +778,28 @@ class SimulationTotalResult:
         )
 
         if annotate:
-            fs = cell_fontsize if cell_fontsize is not None else max(12, min(12, int(120 / max(n_r, 1))))
+            fs = cell_fontsize if cell_fontsize is not None else max(12, min(12, int(120 / max(len(fields), 1))))
             for mi in range(len(fields)):
                 for ri in range(n_r):
                     val = raw[mi, ri]
                     if not np.isnan(val):
                         cell_norm = normed[mi, ri]
                         txt_color = "white" if cell_norm > 0.65 else "black"
-                        ax.text(ri, mi, format(val, fmt), ha="center", va="center", fontsize=fs, color=txt_color)
+                        ax.text(mi, ri, format(val, fmt), ha="center", va="center", fontsize=fs, color=txt_color)
 
         cbar = fig.colorbar(
             ScalarMappable(norm=Normalize(0, 1), cmap="YlGnBu"),
             ax=ax,
             location="bottom",
             fraction=0.05,
-            pad=0.22,
+            pad=0.05,
             shrink=0.6,
             aspect=40,
         )
-        cbar.set_label("Normalised value (per metric)", fontsize=11)
+        cbar.set_label("Normalised value (per metric)", fontsize=12)
         cbar.set_ticks([0, 0.5, 1])
-        cbar.set_ticklabels(["min", "mid", "max"], fontsize=10)
-        cbar.ax.tick_params(labelsize=10)
+        cbar.set_ticklabels(["min", "mid", "max"], fontsize=12)
+        cbar.ax.tick_params(labelsize=12)
 
         if save_path is not None:
             os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
@@ -859,6 +859,7 @@ class SimulationTotalResult:
                 "Check that metrics were computed during simulation."
             )
 
+        # Remettre row_param/col_param dans l'ordre naturel (pas de transposition)
         matrix = pivot.to_numpy(dtype=np.float64)
         row_labels = [str(v) for v in pivot.index]
         col_labels = [str(v) for v in pivot.columns]
