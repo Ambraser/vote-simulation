@@ -461,7 +461,7 @@ class SimulationSeriesResult:
         from matplotlib.figure import Figure as MplFigure
 
         projection = self.map_rules_2d()
-        coords, stress = projection.coords, projection.stress
+        coords = projection.coords
         labels = self._rule_order
 
         if ax is None:
@@ -491,7 +491,7 @@ class SimulationSeriesResult:
             )
 
         title = self._build_title("Rule proximity map")
-        #title += f"\nMDS stress: {stress:.4f}"
+        # title += f"\nMDS stress: {stress:.4f}"
         ax.set_title(title, fontsize=11, pad=10)
         ax.set_xlabel("MDS 1", fontsize=9, color="#555555")
         ax.set_ylabel("MDS 2", fontsize=9, color="#555555")

@@ -238,10 +238,12 @@ class TestMetrics:
         assert pivot.shape == (1, 2)  # 1 voter count, 2 candidate counts
         assert "gen_model=UNI" in desc
 
-    def test_metric_matrix_unfixed_third_raises(self) -> None:
+    def test_metric_matrix_multiple_third_values_averages(self) -> None:
+        # When the third dimension has multiple values, metric_matrix averages them
         total = _make_total_4()
-        with pytest.raises(ValueError, match="distinct values"):
-            total.metric_matrix("n_voters", "n_candidates")
+        pivot, desc = total.metric_matrix("n_voters", "n_candidates")
+        assert pivot.shape == (1, 2)  # 1 voter count, 2 candidate counts
+        assert "avg" in desc
 
     def test_metric_matrix_invalid_params(self) -> None:
         total = _make_total_4()

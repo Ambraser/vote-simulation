@@ -96,7 +96,7 @@ if __name__ == "__main__":
     print("  cowinners_:", r1.cowinners_)  # expected: ['A']
 
     # Case 2: tie at deciding round — two candidates share max above n_v/2
-    
+
     p2 = Profile(
         preferences_rk=np.array([[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0]]),
         labels_candidates=["A", "B", "C"],

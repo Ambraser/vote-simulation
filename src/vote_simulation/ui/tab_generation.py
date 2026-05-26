@@ -7,26 +7,26 @@ avec suivi de progression en temps réel.
 
 from __future__ import annotations
 
-import os
 import queue
 import sys
 import threading
 import time
-from io import StringIO
 from pathlib import Path
 from typing import Any
 
 import streamlit as st
 from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ctx
 
-from vote_simulation.ui.toml_utils import write_temp_toml, QueueWriter
+from vote_simulation.ui.toml_utils import QueueWriter, write_temp_toml
 
 
 @st.cache_resource(show_spinner=False)
 def _cached_generator_codes() -> list[str]:
     """Liste des codes de modèles génératifs — mise en cache pour la session."""
     from vote_simulation.models.data_generation.generator_registry import list_generator_codes
+
     return list_generator_codes()
+
 
 # ---------------------------------------------------------------------------
 # Helpers internes
@@ -72,11 +72,12 @@ def _drain_log_queue() -> list[str]:
 
 def _run_generation(config_path: str, stop_event: threading.Event, log_q: queue.Queue) -> None:
     """Cible du thread : lance generate_data() avec capture des logs."""
-    from vote_simulation.simulation.simulation import generate_data
-    import vote_simulation.simulation.simulation as _sim_module
-
     # Patch tqdm pour émettre dans la queue
     import tqdm as tqdm_module
+
+    import vote_simulation.simulation.simulation as _sim_module
+    from vote_simulation.simulation.simulation import generate_data
+
     original_tqdm = tqdm_module.tqdm
     original_sim_tqdm = _sim_module.tqdm  # liaison locale dans simulation.py
 
@@ -100,7 +101,7 @@ def _run_generation(config_path: str, stop_event: threading.Event, log_q: queue.
             return result
 
     tqdm_module.tqdm = _PatchedTqdm  # type: ignore[assignment]
-    _sim_module.tqdm = _PatchedTqdm  # corrige la liaison `from tqdm import tqdm`
+    _sim_module.tqdm = _PatchedTqdm  # type: ignore[assignment]  # corrige la liaison `from tqdm import tqdm`
 
     # Capturer stdout
     old_stdout = sys.stdout
@@ -124,7 +125,7 @@ def _run_generation(config_path: str, stop_event: threading.Event, log_q: queue.
         st.session_state[_ERROR_KEY] = str(exc)
     finally:
         sys.stdout = old_stdout
-        tqdm_module.tqdm = original_tqdm  # type: ignore[assignment]
+        tqdm_module.tqdm = original_tqdm
         _sim_module.tqdm = original_sim_tqdm
         st.session_state[_RUNNING_KEY] = False
 
@@ -132,6 +133,7 @@ def _run_generation(config_path: str, stop_event: threading.Event, log_q: queue.
 # ---------------------------------------------------------------------------
 # Helpers UI
 # ---------------------------------------------------------------------------
+
 
 def _parse_int_list(raw: str) -> list[int]:
     """Parse une chaîne comme '11, 101, 1001' en liste d'entiers."""
@@ -151,6 +153,7 @@ def _parse_int_list(raw: str) -> list[int]:
 # ---------------------------------------------------------------------------
 # Rendu principal
 # ---------------------------------------------------------------------------
+
 
 def render_tab_generation() -> None:
     """Rend l'onglet Génération de données."""
@@ -176,9 +179,7 @@ def render_tab_generation() -> None:
     # Même logique que pour les rules_family_* : on écrit session_state avant de rendre
     # le multiselect pour que cfg ait la priorité sur la valeur soumise par le navigateur.
     if st.session_state.pop("_cfg_gen_needs_sync", False):
-        st.session_state["gen_models_select"] = [
-            m for m in cfg.get("generative_models", []) if m in all_codes
-        ]
+        st.session_state["gen_models_select"] = [m for m in cfg.get("generative_models", []) if m in all_codes]
 
     selected_models = st.multiselect(
         "Modèles sélectionnés",
@@ -250,7 +251,6 @@ def render_tab_generation() -> None:
     st.subheader("Actions")
 
     is_running: bool = st.session_state[_RUNNING_KEY]
-    thread: threading.Thread | None = st.session_state[_THREAD_KEY]
 
     col_run, col_cancel = st.columns(2)
 
@@ -352,10 +352,7 @@ def _render_gen_feedback() -> None:
         else:
             n_files = st.session_state.get("gen_files_count", 0)
             size_mb = st.session_state.get("gen_total_size_mb", 0.0)
-            st.success(
-                f"**Génération terminée** — {n_files} fichiers générés "
-                f"({size_mb:.2f} Mo au total)."
-            )
+            st.success(f"**Génération terminée** — {n_files} fichiers générés ({size_mb:.2f} Mo au total).")
 
     # Polling : si le thread tourne, relancer le script toutes les ~0.5 s
     if is_running:

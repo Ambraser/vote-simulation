@@ -52,6 +52,7 @@ class DataInstance:
             self.profile = self.build_profile(self.candidates, self.data)
             self.file_path = file_path
             self.model = None
+            self.model_code: str = ""
         except Exception as e:
             raise ValueError(f"Error initializing DataInstance: {e}") from e
 
@@ -136,6 +137,7 @@ class DataInstance:
             labels_candidates=profile.labels_candidates,
         )
         instance.file_path = ""  # not loaded from disk
+        instance.model_code = model_code
         return instance
 
     @classmethod
@@ -158,9 +160,8 @@ class DataInstance:
             labels_candidates=profile.labels_candidates,
         )
         instance.file_path = file_path
+        instance.model_code = ""
         return instance
-
-    # loaders
 
     def get_csv(self, file_path: str) -> tuple[np.ndarray, np.ndarray]:
         """Load candidate labels and utility matrix from a CSV file.

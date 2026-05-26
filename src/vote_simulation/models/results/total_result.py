@@ -725,8 +725,8 @@ class SimulationTotalResult:
             for ri, rule in enumerate(all_rules):
                 if rule not in frame.index:
                     continue
-                for mi, field in enumerate(fields):
-                    col = f"{field}_{stat}"
+                for mi, f_name in enumerate(fields):
+                    col = f"{f_name}_{stat}"
                     if col not in frame.columns:
                         continue
                     val = float(frame.loc[rule, col])
@@ -737,7 +737,7 @@ class SimulationTotalResult:
 
         # Drop metric rows that are entirely NaN
         valid_mask = ~np.all(np.isnan(raw), axis=1)
-        fields = [f for f, v in zip(fields, valid_mask) if v]
+        fields = [f for f, v in zip(fields, valid_mask, strict=False) if v]
         raw = raw[valid_mask]
 
         if len(fields) == 0:
@@ -754,10 +754,12 @@ class SimulationTotalResult:
         fig_h = max(6.0, 1.6 * n_r + 2)
         fig, ax = plt.subplots(figsize=(fig_w, fig_h), constrained_layout=True)
 
-        im = ax.imshow(normed.T, cmap="YlGnBu", vmin=0, vmax=1, interpolation="nearest", aspect="auto")
+        ax.imshow(normed.T, cmap="YlGnBu", vmin=0, vmax=1, interpolation="nearest", aspect="auto")
 
         tick_fs = max(10, min(13, int(200 / max(len(fields), 1))))
-        ax.set_xticks(range(len(fields)), labels=[f.replace("_", " ") for f in fields], rotation=45, ha="right", fontsize=tick_fs)
+        ax.set_xticks(
+            range(len(fields)), labels=[f.replace("_", " ") for f in fields], rotation=45, ha="right", fontsize=tick_fs
+        )
         ax.set_yticks(range(n_r), labels=all_rules, fontsize=11)
         ax.set_xlabel("Metric", fontsize=12)
         ax.set_ylabel("Rule", fontsize=12)
@@ -996,10 +998,10 @@ class SimulationTotalResult:
             fontweight="bold",
         )
 
-        for ax_i, field in zip(axes_flat, available):
+        for ax_i, f_name in zip(axes_flat, available, strict=False):
             try:
                 self.plot_winner_metric_heatmap(
-                    field,
+                    f_name,
                     rule_code,
                     row_param=row_param,
                     col_param=col_param,

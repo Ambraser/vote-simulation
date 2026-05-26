@@ -20,6 +20,8 @@ import multiprocessing as mp
 import queue
 import threading
 import time
+from typing import Any
+
 import streamlit as st
 from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ctx
 
@@ -43,11 +45,12 @@ st.set_page_config(
 # Initialisation de session_state
 # ---------------------------------------------------------------------------
 
+
 def _init_session() -> None:
     if "cfg" not in st.session_state:
         # Démarrer sans configuration par défaut — l'utilisateur charge explicitement un TOML.
         st.session_state["cfg"] = copy.deepcopy(DEFAULT_STATE)
-        st.session_state["toml_active_path"] = None   # Aucune config chargée
+        st.session_state["toml_active_path"] = None  # Aucune config chargée
         st.session_state["cfg_base_dir"] = None
 
     # Statuts globaux
@@ -88,8 +91,8 @@ def _init_session() -> None:
 def _simulation_target(
     config_path: str,
     reload: bool,
-    mp_queue: "mp.Queue[tuple]",
-    mp_stop: object,
+    mp_queue: mp.Queue[tuple],
+    mp_stop: Any,
 ) -> None:
     """Exécuté dans un sous-processus forké — GIL propre, sans concurrence Streamlit.
 
@@ -98,12 +101,13 @@ def _simulation_target(
     Envoie enfin ("done", result) ou ("error", msg).
     """
     import io
+
     import vote_simulation.simulation.simulation as _sim_module
     from vote_simulation.simulation.simulation import simulation_series_from_config_2
 
     original_tqdm = _sim_module.tqdm
 
-    class _ProcTqdm(original_tqdm):  # type: ignore[misc]
+    class _ProcTqdm(original_tqdm):
         def __init__(self, *args, **kwargs) -> None:
             kwargs["file"] = io.StringIO()
             super().__init__(*args, **kwargs)
@@ -119,11 +123,9 @@ def _simulation_target(
             mp_queue.put(("progress", min(self.n, total), total))
             return None
 
-    _sim_module.tqdm = _ProcTqdm
+    _sim_module.tqdm = _ProcTqdm  # type: ignore[assignment]
     try:
-        result = simulation_series_from_config_2(
-            config_path, reload=reload, compute_metrics=True
-        )
+        result = simulation_series_from_config_2(config_path, reload=reload, compute_metrics=True)
         try:
             mp_queue.put(("done", result))
         except Exception:
@@ -151,7 +153,7 @@ def _run_full(
     de simulation lui-même.
     """
     _ctx = mp.get_context("fork")
-    mp_queue: "mp.Queue" = _ctx.Queue()
+    mp_queue: mp.Queue = _ctx.Queue()
     mp_stop: object = _ctx.Event()
     proc = _ctx.Process(
         target=_simulation_target,
@@ -175,9 +177,7 @@ def _run_full(
             # Détection de fin anormale (crash du sous-processus sans message)
             if not proc.is_alive() and mp_queue.empty():
                 ec = proc.exitcode
-                raise RuntimeError(
-                    f"Le processus de simulation s'est terminé inopinément (code {ec})."
-                )
+                raise RuntimeError(f"Le processus de simulation s'est terminé inopinément (code {ec}).")
 
             try:
                 msg = mp_queue.get(timeout=0.2)
@@ -230,6 +230,7 @@ def _run_full(
 # Barre globale
 # ---------------------------------------------------------------------------
 
+
 def _render_global_bar() -> None:
     """Affiche la barre de statut globale persistante en haut de page."""
     cfg: dict = st.session_state["cfg"]
@@ -255,13 +256,15 @@ def _render_global_bar() -> None:
     col_status, col_toml, col_reload, col_run = st.columns([2, 3, 2, 2])
 
     with col_status:
-        color = "#28a745" if "Prêt" in status or "Terminé" in status else (
-            "#dc3545" if "Erreur" in status or "Annulé" in status else "#fd7e14"
+        color = (
+            "#28a745"
+            if "Prêt" in status or "Terminé" in status
+            else ("#dc3545" if "Erreur" in status or "Annulé" in status else "#fd7e14")
         )
         st.markdown(
             f'<div style="padding:8px 12px; border-radius:6px; background:{color}20; '
             f'border-left:4px solid {color}; font-weight:bold; color:{color};">'
-            f'● {status}</div>',
+            f"● {status}</div>",
             unsafe_allow_html=True,
         )
 
@@ -322,9 +325,7 @@ def _render_global_bar() -> None:
             # Pré-calculer le nombre de combinaisons (model × voters × candidates)
             # pour afficher la barre avant le premier tick du thread.
             _pre_total = max(
-                len(cfg.get("generative_models", []))
-                * len(cfg.get("voters", []))
-                * len(cfg.get("candidates", [])),
+                len(cfg.get("generative_models", [])) * len(cfg.get("voters", [])) * len(cfg.get("candidates", [])),
                 1,
             )
             st.session_state["full_run_progress"] = (0, _pre_total)
@@ -454,6 +455,7 @@ def _render_full_run_feedback() -> None:
 # Point d'entrée principal
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
     _init_session()
 
@@ -466,12 +468,14 @@ def main() -> None:
     st.markdown("---")
 
     # 4 onglets principaux
-    tab_cfg, tab_gen, tab_sim, tab_res = st.tabs([
-        "Configuration",
-        "Données",
-        "Simulation",
-        "Résultats",
-    ])
+    tab_cfg, tab_gen, tab_sim, tab_res = st.tabs(
+        [
+            "Configuration",
+            "Données",
+            "Simulation",
+            "Résultats",
+        ]
+    )
 
     with tab_cfg:
         render_tab_config()

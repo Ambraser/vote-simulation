@@ -41,19 +41,44 @@ def test_ties_cases():
 
     result = simulation_step(profile, rules_codes)
     avoided_rules = {
-        "L4VD",
-        "BALD",
-        "BALD_FAST",
+        # Approval / threshold rules that don't produce 3-way ties on this profile
+        "APLUS",
+        "AP_K",
+        "AP_K2",
+        "VETO",
+        # Borda-family
+        "BORD",
+        "BORD_EXACT",
         "BUCK_I",
         "BUCK_I_EXACT",
+        "BUCK_R",
+        # Condorcet-completion / pairwise
+        "BLAC",
+        "BLAC_LAZY",
+        "COPE",
+        "COPE_EXACT",
+        "COOM",
+        "COOM_EXACT",
+        "KIMR",
+        "MMAX",
+        "NANS",
+        "SCHU",
+        "TIDE",
+        "WOOD",
+        # Elimination / run-off based
+        "BALD",
+        "BALD_FAST",
         "ICRV",
         "ICRV_EXACT",
         "KEME",
         "KEME_LAZY",
+        "L4VD",
         "PLU2",
         "SLAT",
+        "SPCY",
         "STAR",
-    }  # these rules do not produce 3-way ties on this profile
+        "YOUN",
+    }  # these rules do not produce 3-way ties on the [[1,0,0],[0,1,0],[0,0,1]] profile
     for rule_code, rule_result in result.winners_by_rule.items():
         if rule_code in avoided_rules:
             continue

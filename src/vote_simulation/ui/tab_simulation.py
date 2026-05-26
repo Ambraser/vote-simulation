@@ -11,19 +11,19 @@ import queue
 import sys
 import threading
 import time
-from pathlib import Path
 from typing import Any
 
 import streamlit as st
 from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ctx
 
-from vote_simulation.ui.toml_utils import write_temp_toml, QueueWriter
+from vote_simulation.ui.toml_utils import QueueWriter, write_temp_toml
 
 
 @st.cache_resource(show_spinner=False)
 def _cached_rule_codes() -> list[str]:
     """Liste des codes de règles — mise en cache pour la session."""
     from vote_simulation.models.rules import get_all_rules_codes
+
     return get_all_rules_codes()
 
 
@@ -31,6 +31,7 @@ def _cached_rule_codes() -> list[str]:
 def _cached_family_map() -> dict[str, list[str]]:
     """Dictionnaire famille → liste de codes — mis en cache pour la session."""
     return _build_family_map(_cached_rule_codes())
+
 
 # ---------------------------------------------------------------------------
 # Familles de règles — mapping préfixe → famille
@@ -48,8 +49,37 @@ _FAMILIES: list[tuple[str, str]] = [
 ]
 
 _FAMILY_PREFIXES: dict[str, list[str]] = {
-    "PLURALITY_IRV": ["PLU", "HARE", "IRV", "IRVA", "IRVD", "ICRV", "SIRV", "EXHB", "RPAR", "BUCK", "IBUC", "L4VD", "SPCY", "CAIR"],
-    "CONDORCET": ["COPE", "SCHU", "MMAX", "BLAC", "KEME", "SLAT", "KIMR", "WOOD", "YOUN", "TIDE", "DODG", "CSUM", "CVIR"],
+    "PLURALITY_IRV": [
+        "PLU",
+        "HARE",
+        "IRV",
+        "IRVA",
+        "IRVD",
+        "ICRV",
+        "SIRV",
+        "EXHB",
+        "RPAR",
+        "BUCK",
+        "IBUC",
+        "L4VD",
+        "SPCY",
+        "CAIR",
+    ],
+    "CONDORCET": [
+        "COPE",
+        "SCHU",
+        "MMAX",
+        "BLAC",
+        "KEME",
+        "SLAT",
+        "KIMR",
+        "WOOD",
+        "YOUN",
+        "TIDE",
+        "DODG",
+        "CSUM",
+        "CVIR",
+    ],
     "SCORE_BORDA": ["BORD", "COOM", "NANS", "PV-"],
     "JUDGMENT": ["MJ", "RV", "STAR", "VETO"],
     "AP_THRESHOLD": ["AP_T"],
@@ -110,16 +140,18 @@ def _init_sim_state() -> None:
 
 def _run_simulation(config_path: str, stop_event: threading.Event, log_q: queue.Queue, reload: bool = False) -> None:
     """Cible du thread : lance simulation_series_from_config() avec capture des logs."""
-    from vote_simulation.simulation.simulation import simulation_series_from_config
-    import vote_simulation.simulation.simulation as _sim_module
-
     import tqdm as tqdm_module
+
+    import vote_simulation.simulation.simulation as _sim_module
+    from vote_simulation.simulation.simulation import simulation_series_from_config
+
     original_tqdm = tqdm_module.tqdm
     original_sim_tqdm = _sim_module.tqdm  # liaison locale dans simulation.py
 
     class _PatchedTqdm(original_tqdm):
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             import io
+
             kwargs["file"] = io.StringIO()
             # Seules les instances non désactivées (= tqdm de séries) mettent
             # à jour la barre de progression Streamlit.
@@ -142,7 +174,7 @@ def _run_simulation(config_path: str, stop_event: threading.Event, log_q: queue.
             return None
 
     tqdm_module.tqdm = _PatchedTqdm  # type: ignore[assignment]
-    _sim_module.tqdm = _PatchedTqdm  # corrige la liaison `from tqdm import tqdm`
+    _sim_module.tqdm = _PatchedTqdm  # type: ignore[assignment]  # corrige la liaison `from tqdm import tqdm`
     old_stdout = sys.stdout
     sys.stdout = QueueWriter(log_q)
 
@@ -162,7 +194,7 @@ def _run_simulation(config_path: str, stop_event: threading.Event, log_q: queue.
         st.session_state[_SIM_ERROR_KEY] = str(exc)
     finally:
         sys.stdout = old_stdout
-        tqdm_module.tqdm = original_tqdm  # type: ignore[assignment]
+        tqdm_module.tqdm = original_tqdm
         _sim_module.tqdm = original_sim_tqdm
         st.session_state[_SIM_RUNNING_KEY] = False
 
@@ -182,15 +214,13 @@ def _drain_log_queue() -> list[str]:
 # Rendu principal
 # ---------------------------------------------------------------------------
 
+
 def render_tab_simulation() -> None:
     """Rend l'onglet Simulation."""
     _init_sim_state()
 
     st.header("Simulation — Règles de vote")
-    st.caption(
-        "Sélectionnez les règles à appliquer, choisissez la source des données, "
-        "puis lancez la simulation."
-    )
+    st.caption("Sélectionnez les règles à appliquer, choisissez la source des données, puis lancez la simulation.")
 
     cfg: dict = st.session_state["cfg"]
 
@@ -209,11 +239,7 @@ def render_tab_simulation() -> None:
         loaded_rules = cfg.get("rule_codes", [])
         for _, family_id in _FAMILIES:
             codes_in_family = family_map.get(family_id, [])
-            st.session_state[f"rules_family_{family_id}"] = [
-                c for c in codes_in_family if c in loaded_rules
-            ]
-
-    current_rules: list[str] = cfg.get("rule_codes", [])
+            st.session_state[f"rules_family_{family_id}"] = [c for c in codes_in_family if c in loaded_rules]
 
     # Boutons rapides
     col_all, col_none = st.columns(2)
@@ -238,7 +264,9 @@ def render_tab_simulation() -> None:
         if not codes_in_family:
             continue
 
-        with st.expander(f"{family_label} ({len(codes_in_family)} règles)", expanded=(family_id in ("PLURALITY_IRV", "SCORE_BORDA"))):
+        with st.expander(
+            f"{family_label} ({len(codes_in_family)} règles)", expanded=(family_id in ("PLURALITY_IRV", "SCORE_BORDA"))
+        ):
             # Boutons select/deselect pour cette famille
             fc1, fc2 = st.columns(2)
             with fc1:

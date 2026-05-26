@@ -274,12 +274,7 @@ def simulation_from_config(
         except ValueError:
             print(f"Warning: unknown rule code '{code}' — skipped.")
 
-    total = (
-        len(config.generative_models)
-        * len(config.voters or [])
-        * len(config.candidates or [])
-        * config.iterations
-    )
+    total = len(config.generative_models) * len(config.voters or []) * len(config.candidates or []) * config.iterations
     print(f"Running full simulation: {total} profile(s) × {len(builders)} rule(s)")
 
     with tqdm(total=total, desc="Simulating", disable=not show_progress) as pbar:
@@ -523,6 +518,7 @@ def simulation_instance(
     # print(f"Simulation completed — cached to {cache_path}")
     return series
 
+
 def simulation_series_from_config_2(
     config_path: str,
     reload: bool = False,
@@ -572,6 +568,7 @@ def simulation_series_from_config_2(
     print(f"Completed {total_result.series_count} simulation series.")
     return total_result
 
+
 def simulation_series_from_config(
     config_path: str,
     reload: bool = False,
@@ -613,13 +610,21 @@ def simulation_series_from_config(
 
     with tqdm(total=n_combos, desc="Running simulation series") as pbar:
         for model, extra, n_v, n_c in combos:
-            total_result.add_series(simulation_instance(
-                gen_code=model, n_v=n_v, n_c=n_c,
-                rule_codes=config.rule_codes, n_iteration=config.iterations,
-                seed=config.seed, base_path=config.output_base_path,
-                reload=reload, show_progress=False,
-                extra_params=extra, compute_metrics=compute_metrics,
-            ))
+            total_result.add_series(
+                simulation_instance(
+                    gen_code=model,
+                    n_v=n_v,
+                    n_c=n_c,
+                    rule_codes=config.rule_codes,
+                    n_iteration=config.iterations,
+                    seed=config.seed,
+                    base_path=config.output_base_path,
+                    reload=reload,
+                    show_progress=False,
+                    extra_params=extra,
+                    compute_metrics=compute_metrics,
+                )
+            )
             pbar.update(1)
 
     print(f"Completed {total_result.series_count} simulation series.")

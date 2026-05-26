@@ -24,15 +24,15 @@ from typing import Any
 
 import tomli_w
 
-
 # ---------------------------------------------------------------------------
 # Shared thread utility
 # ---------------------------------------------------------------------------
 
+
 class QueueWriter:
     """Redirige sys.stdout vers une queue — utilisé par les threads de génération/simulation."""
 
-    def __init__(self, q: "queue.Queue[str]") -> None:
+    def __init__(self, q: queue.Queue[str]) -> None:
         self._q = q
 
     def write(self, text: str) -> None:
@@ -43,9 +43,11 @@ class QueueWriter:
     def flush(self) -> None:
         pass
 
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
 
 def _coerce_int(value: Any, field: str, default: int, warnings: list[str]) -> int:
     """Convertit *value* en int (via float) ; journalise un warning si nécessaire."""
@@ -53,9 +55,7 @@ def _coerce_int(value: Any, field: str, default: int, warnings: list[str]) -> in
         result = int(float(value))
         return result
     except (TypeError, ValueError):
-        warnings.append(
-            f"Champ `{field}` invalide ({value!r}) — valeur par défaut utilisée : {default}."
-        )
+        warnings.append(f"Champ `{field}` invalide ({value!r}) — valeur par défaut utilisée : {default}.")
         return default
 
 
@@ -105,13 +105,19 @@ def _parse_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
         simulation = {}
 
     # Si aucune clé simulation trouvée, essayer la racine (TOML plat)
-    KNOWN_KEYS = {"output_base_path", "seed", "generative_models", "rule_codes",
-                  "iterations", "candidates", "voters", "input_folder_path"}
+    KNOWN_KEYS = {
+        "output_base_path",
+        "seed",
+        "generative_models",
+        "rule_codes",
+        "iterations",
+        "candidates",
+        "voters",
+        "input_folder_path",
+    }
     if not simulation and any(k in payload for k in KNOWN_KEYS):
         simulation = payload
-        warnings.append(
-            "Aucune section `[simulation]` trouvée — lecture des clés à la racine du fichier."
-        )
+        warnings.append("Aucune section `[simulation]` trouvée — lecture des clés à la racine du fichier.")
 
     # output_base_path
     if "output_base_path" in simulation:
@@ -124,9 +130,7 @@ def _parse_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
 
     # generative_models
     if "generative_models" in simulation:
-        state["generative_models"] = _coerce_str_list(
-            simulation["generative_models"], "generative_models", warnings
-        )
+        state["generative_models"] = _coerce_str_list(simulation["generative_models"], "generative_models", warnings)
 
     # rule_codes
     if "rule_codes" in simulation:
@@ -140,9 +144,7 @@ def _parse_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
 
     # voters
     if "voters" in simulation:
-        state["voters"] = _coerce_int_list(
-            simulation["voters"], "voters", DEFAULT_STATE["voters"], warnings
-        )
+        state["voters"] = _coerce_int_list(simulation["voters"], "voters", DEFAULT_STATE["voters"], warnings)
 
     # iterations
     if "iterations" in simulation:
@@ -175,6 +177,7 @@ def _parse_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
         state["generator_params"] = gp
 
     return state, warnings
+
 
 # ---------------------------------------------------------------------------
 # Default state

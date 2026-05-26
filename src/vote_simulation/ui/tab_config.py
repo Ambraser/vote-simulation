@@ -18,7 +18,6 @@ from vote_simulation.ui.toml_utils import (
 )
 
 
-
 def _clear_cfg_widget_keys() -> None:
     """Synchronise tous les widgets pilotés par cfg avec les valeurs du cfg courant.
 
@@ -46,12 +45,12 @@ def _clear_cfg_widget_keys() -> None:
 
     # ---- Multiselects (dépendent de registres externes chargés dans les onglets) ----
     # Utiliser des flags consommés par chaque onglet au début de son rendu.
-    st.session_state["_cfg_gen_needs_sync"] = True    # → gen_models_select dans render_tab_generation
+    st.session_state["_cfg_gen_needs_sync"] = True  # → gen_models_select dans render_tab_generation
     st.session_state["_cfg_rules_needs_sync"] = True  # → rules_family_* dans render_tab_simulation
 
     # Vider les anciennes clés rules_family_* pour éviter des conflits de type
     for key in list(st.session_state.keys()):
-        if key.startswith("rules_family_"):
+        if isinstance(key, str) and key.startswith("rules_family_"):
             del st.session_state[key]
 
 

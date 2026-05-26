@@ -15,15 +15,16 @@ from pathlib import Path
 from typing import Any
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
 
-
 # ---------------------------------------------------------------------------
 # Helpers : scan + chargement
 # ---------------------------------------------------------------------------
+
 
 def _scan_sim_result(base_path: str) -> dict[str, dict[str, list[int]]]:
     """Retourne {model: {str(n_v): [n_c, …]}} depuis sim_result/."""
@@ -78,7 +79,7 @@ def _load_total(
     base_path: str,
     structure: dict[str, dict[str, list[int]]],
     *,
-    session_cache: dict | None = None,
+    session_cache: Any | None = None,
 ) -> Any:
     """Charge toutes les séries disponibles dans un SimulationTotalResult.
 
@@ -119,11 +120,7 @@ def _apply_filter(
     cands_s = set(cands)
     result = SimulationTotalResult()
     for key, s in total:
-        if (
-            key.gen_model in models_s
-            and key.n_voters in voters_s
-            and key.n_candidates in cands_s
-        ):
+        if key.gen_model in models_s and key.n_voters in voters_s and key.n_candidates in cands_s:
             result._entries[key] = s
     return result
 
@@ -131,6 +128,7 @@ def _apply_filter(
 # ---------------------------------------------------------------------------
 # Helpers : affichage
 # ---------------------------------------------------------------------------
+
 
 def _fig_to_bytes(fig: plt.Figure) -> bytes:
     buf = io.BytesIO()
@@ -145,8 +143,7 @@ def _show_and_export(ax_or_axes: Any, key: str, filename: str) -> None:
         if hasattr(ax_or_axes, "get_figure"):
             fig = ax_or_axes.get_figure()
         else:
-            flat = [a for a in np.asarray(ax_or_axes, dtype=object).flatten()
-                    if hasattr(a, "get_figure")]
+            flat = [a for a in np.asarray(ax_or_axes, dtype=object).flatten() if hasattr(a, "get_figure")]
             fig = flat[0].get_figure() if flat else plt.gcf()
     except Exception:
         fig = plt.gcf()
@@ -178,8 +175,7 @@ def _cached_plot(
                 if hasattr(ax_or_axes, "get_figure"):
                     fig = ax_or_axes.get_figure()
                 else:
-                    flat = [a for a in np.asarray(ax_or_axes, dtype=object).flatten()
-                            if hasattr(a, "get_figure")]
+                    flat = [a for a in np.asarray(ax_or_axes, dtype=object).flatten() if hasattr(a, "get_figure")]
                     fig = flat[0].get_figure() if flat else plt.gcf()
             except Exception:
                 fig = plt.gcf()
@@ -194,7 +190,7 @@ def _cached_plot(
         # ValueError : données manquantes (ex. métriques non disponibles)
         if isinstance(val, ValueError):
             st.info(
-                f"{val}\n\nLancez un **Run complet** (avec *compute\_metrics=True*) "
+                f"{val}\n\nLancez un **Run complet** (avec *compute\\_metrics=True*) "
                 "pour rendre ces données disponibles."
             )
         else:
@@ -225,7 +221,7 @@ def _df_csv_export(df: Any, key: str, filename: str) -> None:
     )
 
 
-def _build_global_dist_df(total_f: Any) -> "pd.DataFrame":
+def _build_global_dist_df(total_f: Any) -> Any:
     """Construit la matrice de distance moyenne inter-règles pour un SimulationTotalResult."""
     import pandas as pd
 
@@ -251,14 +247,13 @@ def _build_global_dist_df(total_f: Any) -> "pd.DataFrame":
         counts[ix] += 1
     with np.errstate(invalid="ignore"):
         avg = np.where(counts > 0, acc / counts, np.nan)
-    return pd.DataFrame(avg, index=all_rules, columns=all_rules)
+    return pd.DataFrame(avg, index=np.array(all_rules), columns=np.array(all_rules))
 
 
-def _build_global_metrics_df(
-    total_f: Any, metrics: list[str] | None = None, stat: str = "mean"
-) -> "pd.DataFrame":
+def _build_global_metrics_df(total_f: Any, metrics: list[str] | None = None, stat: str = "mean") -> Any:
     """Construit la matrice (règles × métriques) moyenne pour un SimulationTotalResult."""
     import pandas as pd
+
     from vote_simulation.models.rules.winner_metrics import METRIC_FIELDS
 
     fields = list(metrics) if metrics is not None else list(METRIC_FIELDS)
@@ -290,7 +285,7 @@ def _build_global_metrics_df(
                         cnt[ri, mi] += 1
     with np.errstate(invalid="ignore"):
         avg = np.where(cnt > 0, acc / cnt, np.nan)
-    return pd.DataFrame(avg, index=all_rules, columns=fields)
+    return pd.DataFrame(avg, index=np.array(all_rules), columns=np.array(fields))
 
 
 def _third_param_filter(total_f: Any, row_p: str, col_p: str, key_prefix: str) -> Any:
@@ -317,19 +312,15 @@ def _third_param_filter(total_f: Any, row_p: str, col_p: str, key_prefix: str) -
 # Rendu principal
 # ---------------------------------------------------------------------------
 
+
 def render_tab_results() -> None:
     st.header("Résultats")
-    st.caption(
-        "Exploration via les méthodes natives "
-        "`SimulationSeriesResult` et `SimulationTotalResult`."
-    )
+    st.caption("Exploration via les méthodes natives `SimulationSeriesResult` et `SimulationTotalResult`.")
 
     # Pendant un Run complet, on évite de lire les 18 000 parquets existants :
     # _load_total() bloquerait le thread principal 20-60 s et figerait la barre.
     if st.session_state.get("full_run_running"):
-        st.info(
-            "⏳ Run complet en cours — les résultats seront disponibles à la fin."
-        )
+        st.info("⏳ Run complet en cours — les résultats seront disponibles à la fin.")
         return
 
     cfg: dict = st.session_state["cfg"]
@@ -346,8 +337,7 @@ def render_tab_results() -> None:
 
     if not structure:
         st.info(
-            f"Aucun résultat dans `{base_path}/sim_result/`.\n\n"
-            "Lancez une simulation dans l'onglet **Simulation**."
+            f"Aucun résultat dans `{base_path}/sim_result/`.\n\nLancez une simulation dans l'onglet **Simulation**."
         )
         return
 
@@ -364,9 +354,7 @@ def render_tab_results() -> None:
     # individuellement → zéro double-lecture parquet dans l'onglet "Analyse d'une série".
     if cache_key not in st.session_state:
         with st.spinner("Chargement initial de tous les résultats…"):
-            st.session_state[cache_key] = _load_total(
-                base_path, structure, session_cache=st.session_state
-            )
+            st.session_state[cache_key] = _load_total(base_path, structure, session_cache=st.session_state)
 
     total: Any = st.session_state[cache_key]
 
@@ -386,9 +374,7 @@ def render_tab_results() -> None:
         series_key = f"_series_{base_path}_{sel_model}_{sel_voters}_{sel_cands}"
         if series_key not in st.session_state:
             with st.spinner("Chargement de la série…"):
-                st.session_state[series_key] = _load_series(
-                    base_path, sel_model, int(sel_voters), int(sel_cands)
-                )
+                st.session_state[series_key] = _load_series(base_path, sel_model, int(sel_voters), int(sel_cands))
         series = st.session_state[series_key]
 
         if series.step_count == 0:
@@ -397,17 +383,17 @@ def render_tab_results() -> None:
 
         rules = series.mean_distance_matrix_frame.columns.tolist()
         tag = f"{sel_model}_v{sel_voters}_c{sel_cands}"
-        st.success(
-            f"**{series.step_count} itérations** · **{len(rules)} règles** : {', '.join(rules)}"
-        )
+        st.success(f"**{series.step_count} itérations** · **{len(rules)} règles** : {', '.join(rules)}")
 
-        s_tabs = st.tabs([
-            "Matrice de distance",
-            "Projection 2D",
-            "Projection 3D",
-            "Métriques",
-            "Résumé",
-        ])
+        s_tabs = st.tabs(
+            [
+                "Matrice de distance",
+                "Projection 2D",
+                "Projection 3D",
+                "Métriques",
+                "Résumé",
+            ]
+        )
 
         # ── Matrice de distance ─────────────────────────────────────────────
         with s_tabs[0]:
@@ -418,7 +404,8 @@ def render_tab_results() -> None:
             _cached_plot(
                 f"_plt_dist_{tag}",
                 lambda: series.plot_mean_distance_matrix(show=False),
-                f"dl_dist_{tag}", f"dist_{tag}.png",
+                f"dl_dist_{tag}",
+                f"dist_{tag}.png",
             )
 
         # ── Projection 2D ──────────────────────────────────────────────────
@@ -430,7 +417,8 @@ def render_tab_results() -> None:
                 _cached_plot(
                     f"_plt_2d_{tag}",
                     lambda: series.plot_rules_2d(show=False),
-                    f"dl_2d_{tag}", f"mds2d_{tag}.png",
+                    f"dl_2d_{tag}",
+                    f"mds2d_{tag}.png",
                 )
 
         # ── Projection 3D ──────────────────────────────────────────────────
@@ -442,13 +430,15 @@ def render_tab_results() -> None:
                 _cached_plot(
                     f"_plt_3d_{tag}",
                     lambda: series.plot_rules_3d(show=False),
-                    f"dl_3d_{tag}", f"mds3d_{tag}.png",
+                    f"dl_3d_{tag}",
+                    f"mds3d_{tag}.png",
                 )
 
         # ── Métriques des gagnants ──────────────────────────────────────────
         with s_tabs[3]:
             from vote_simulation.models.results.total_result import SimulationTotalResult as _STR
             from vote_simulation.models.rules.winner_metrics import METRIC_FIELDS as _MF
+
             msf = series.metrics_summary_frame
             if msf.empty:
                 st.info(
@@ -474,21 +464,18 @@ def render_tab_results() -> None:
                     default=avail_mf,
                     key=f"sm_mf_{tag}",
                 )
-                stat_sm = mc2.radio(
-                    "Statistique", ["mean", "std"], horizontal=True, key=f"sm_stat_{tag}"
-                )
+                stat_sm = mc2.radio("Statistique", ["mean", "std"], horizontal=True, key=f"sm_stat_{tag}")
                 if not sel_mf_sm:
                     st.info("Sélectionnez au moins une métrique.")
                 else:
                     _sm_key = f"_plt_sm_{tag}_{sorted(sel_mf_sm)}_{stat_sm}"
                     _cached_plot(
                         _sm_key,
-                        lambda _m=sel_mf_sm, _s=stat_sm: (
-                            _total_one.plot_metrics_rules_matrix(
-                                metrics=_m, stat=_s, show=False
-                            )
+                        lambda _m=sel_mf_sm, _s=stat_sm: _total_one.plot_metrics_rules_matrix(
+                            metrics=_m, stat=_s, show=False
                         ),
-                        f"dl_sm_{tag}", f"metrics_{tag}.png",
+                        f"dl_sm_{tag}",
+                        f"metrics_{tag}.png",
                     )
 
                     st.dataframe(
@@ -507,9 +494,9 @@ def render_tab_results() -> None:
 
             st.markdown("**Matrice de distance** (`mean_distance_matrix_frame`)")
             st.dataframe(
-                series.mean_distance_matrix_frame
-                    .style.background_gradient(cmap="Reds", vmin=0, vmax=100)
-                    .format("{:.1f}"),
+                series.mean_distance_matrix_frame.style.background_gradient(cmap="Reds", vmin=0, vmax=100).format(
+                    "{:.1f}"
+                ),
                 width="stretch",
             )
             _df_csv_export(
@@ -545,63 +532,54 @@ def render_tab_results() -> None:
         if col_btn.button("Recharger", key="btn_reload_total"):
             # Supprimer le total, les filtres appliqu\u00e9s et tous les caches de plots
             for _k in list(st.session_state.keys()):
-                if _k in (cache_key, "gf_m_applied", "gf_v_applied", "gf_c_applied") \
-                        or _k.startswith("_filtered_") \
-                        or _k.startswith("_plt_g_") \
-                        or _k.startswith("_avail_rules_"):
+                if (
+                    _k in (cache_key, "gf_m_applied", "gf_v_applied", "gf_c_applied")
+                    or (isinstance(_k, str) and _k.startswith("_filtered_"))
+                    or (isinstance(_k, str) and _k.startswith("_plt_g_"))
+                    or (isinstance(_k, str) and _k.startswith("_avail_rules_"))
+                ):
                     del st.session_state[_k]
             st.rerun()
 
         # Filtres avec bouton Appliquer pour éviter toute recomputation à chaque widget
         _fk_models = "gf_m_applied"
         _fk_voters = "gf_v_applied"
-        _fk_cands  = "gf_c_applied"
+        _fk_cands = "gf_c_applied"
         # Valeurs appliquées courantes (defaults : tout sélectionné)
         applied_models = st.session_state.get(_fk_models, list(total.gen_models))
         applied_voters = st.session_state.get(_fk_voters, list(total.voter_counts))
-        applied_cands  = st.session_state.get(_fk_cands,  list(total.candidate_counts))
+        applied_cands = st.session_state.get(_fk_cands, list(total.candidate_counts))
 
         with st.expander("Filtres", expanded=True):
             fc1, fc2, fc3, fc4 = st.columns([3, 3, 3, 1])
-            f_models = fc1.multiselect(
-                "Modèles", total.gen_models, default=applied_models, key="gf_m"
-            )
-            f_voters = fc2.multiselect(
-                "Votants", total.voter_counts, default=applied_voters, key="gf_v"
-            )
-            f_cands = fc3.multiselect(
-                "Candidats", total.candidate_counts, default=applied_cands, key="gf_c"
-            )
+            f_models = fc1.multiselect("Modèles", total.gen_models, default=applied_models, key="gf_m")
+            f_voters = fc2.multiselect("Votants", total.voter_counts, default=applied_voters, key="gf_v")
+            f_cands = fc3.multiselect("Candidats", total.candidate_counts, default=applied_cands, key="gf_c")
             if fc4.button("Appliquer", key="btn_apply_filters", width="stretch"):
                 new_models = f_models or list(total.gen_models)
                 new_voters = f_voters or list(total.voter_counts)
-                new_cands  = f_cands  or list(total.candidate_counts)
+                new_cands = f_cands or list(total.candidate_counts)
                 # Invalider le cache filtré si les filtres changent
-                if (new_models != applied_models
-                        or new_voters != applied_voters
-                        or new_cands != applied_cands):
+                if new_models != applied_models or new_voters != applied_voters or new_cands != applied_cands:
                     # Supprimer tous les caches de plots associés
                     old_fk = (
                         f"_filtered_{cache_key}_"
                         f"{sorted(applied_models)}_{sorted(applied_voters)}_{sorted(applied_cands)}"
                     )
                     for k in list(st.session_state.keys()):
-                        if k.startswith("_plt_g_") or k == old_fk:
+                        if (isinstance(k, str) and k.startswith("_plt_g_")) or k == old_fk:
                             del st.session_state[k]
                 st.session_state[_fk_models] = new_models
                 st.session_state[_fk_voters] = new_voters
-                st.session_state[_fk_cands]  = new_cands
+                st.session_state[_fk_cands] = new_cands
                 applied_models, applied_voters, applied_cands = new_models, new_voters, new_cands
 
         # Cache de la vue filtrée (shallow copy — zéro copie de données)
         _filter_cache_key = (
-            f"_filtered_{cache_key}_"
-            f"{sorted(applied_models)}_{sorted(applied_voters)}_{sorted(applied_cands)}"
+            f"_filtered_{cache_key}_{sorted(applied_models)}_{sorted(applied_voters)}_{sorted(applied_cands)}"
         )
         if _filter_cache_key not in st.session_state:
-            st.session_state[_filter_cache_key] = _apply_filter(
-                total, applied_models, applied_voters, applied_cands
-            )
+            st.session_state[_filter_cache_key] = _apply_filter(total, applied_models, applied_voters, applied_cands)
         total_f = st.session_state[_filter_cache_key]
 
         if total_f.series_count == 0:
@@ -610,14 +588,16 @@ def render_tab_results() -> None:
 
         PARAMS = ["gen_model", "n_voters", "n_candidates"]
 
-        g_tabs = st.tabs([
-            "Résumé",
-            "Matrice de distance",
-            "Métriques des gagnants",
-            "Heatmap métrique",
-            "Grille de comparaison",
-            "Paire de règles",
-        ])
+        g_tabs = st.tabs(
+            [
+                "Résumé",
+                "Matrice de distance",
+                "Métriques des gagnants",
+                "Heatmap métrique",
+                "Grille de comparaison",
+                "Paire de règles",
+            ]
+        )
 
         # ── Résumé ──────────────────────────────────────────────────────────
         with g_tabs[0]:
@@ -629,13 +609,13 @@ def render_tab_results() -> None:
         # ── Matrice de distance globale ──────────────────────────────────────
         with g_tabs[1]:
             st.caption(
-                "`total.plot_mean_distance_matrix()` — distance moyenne "
-                "inter-règles sur toutes les séries filtrées"
+                "`total.plot_mean_distance_matrix()` — distance moyenne inter-règles sur toutes les séries filtrées"
             )
             _cached_plot(
                 f"_plt_g_dist_{_filter_cache_key}",
                 lambda: total_f.plot_mean_distance_matrix(show=False),
-                "dl_g_dist", "global_distance_matrix.png",
+                "dl_g_dist",
+                "global_distance_matrix.png",
             )
             _g_dist_df_key = f"_g_dist_df_{_filter_cache_key}"
             if _g_dist_df_key not in st.session_state:
@@ -644,8 +624,7 @@ def render_tab_results() -> None:
             if not _g_dist_df.empty:
                 st.markdown("**Matrice de distance moyenne** (%)")
                 st.dataframe(
-                    _g_dist_df.style.background_gradient(cmap="Reds", vmin=0, vmax=100)
-                        .format("{:.1f}"),
+                    _g_dist_df.style.background_gradient(cmap="Reds", vmin=0, vmax=100).format("{:.1f}"),
                     width="stretch",
                 )
                 _df_csv_export(_g_dist_df, "dl_csv_g_dist", "global_distance_matrix.csv")
@@ -657,6 +636,7 @@ def render_tab_results() -> None:
                 "par règle, normalisée par ligne pour comparer les règles entre elles"
             )
             from vote_simulation.models.rules.winner_metrics import METRIC_FIELDS as _GMF
+
             gmc1, gmc2 = st.columns([3, 1])
             sel_gm = gmc1.multiselect(
                 "Métriques à afficher",
@@ -664,30 +644,24 @@ def render_tab_results() -> None:
                 default=list(_GMF),
                 key="gm_metrics",
             )
-            stat_gm = gmc2.radio(
-                "Statistique", ["mean", "std"], horizontal=True, key="gm_stat"
-            )
+            stat_gm = gmc2.radio("Statistique", ["mean", "std"], horizontal=True, key="gm_stat")
             if not sel_gm:
                 st.info("Sélectionnez au moins une métrique.")
             else:
                 _cached_plot(
                     f"_plt_g_gm_{_filter_cache_key}_{sorted(sel_gm)}_{stat_gm}",
-                    lambda _m=sel_gm, _s=stat_gm: total_f.plot_metrics_rules_matrix(
-                        metrics=_m, stat=_s, show=False
-                    ),
-                    "dl_gm_matrix", "metrics_rules_matrix.png",
+                    lambda _m=sel_gm, _s=stat_gm: total_f.plot_metrics_rules_matrix(metrics=_m, stat=_s, show=False),
+                    "dl_gm_matrix",
+                    "metrics_rules_matrix.png",
                 )
                 _g_met_df_key = f"_g_met_df_{_filter_cache_key}_{sorted(sel_gm)}_{stat_gm}"
                 if _g_met_df_key not in st.session_state:
-                    st.session_state[_g_met_df_key] = _build_global_metrics_df(
-                        total_f, metrics=sel_gm, stat=stat_gm
-                    )
+                    st.session_state[_g_met_df_key] = _build_global_metrics_df(total_f, metrics=sel_gm, stat=stat_gm)
                 _g_met_df = st.session_state[_g_met_df_key]
                 if not _g_met_df.empty:
                     st.markdown("**Données brutes** (règles × métriques)")
                     st.dataframe(
-                        _g_met_df.style.background_gradient(cmap="Blues", axis=0)
-                            .format("{:.4f}"),
+                        _g_met_df.style.background_gradient(cmap="Blues", axis=0).format("{:.4f}"),
                         width="stretch",
                     )
                     _df_csv_export(
@@ -699,14 +673,11 @@ def render_tab_results() -> None:
         # ── Heatmap métrique ─────────────────────────────────────────────────
         with g_tabs[3]:
             st.caption(
-                "`total.plot_metric_heatmap()` — distance moyenne croisée "
-                "sur 2 paramètres (le 3ème doit être fixé)"
+                "`total.plot_metric_heatmap()` — distance moyenne croisée sur 2 paramètres (le 3ème doit être fixé)"
             )
             hc1, hc2 = st.columns(2)
             row_p = hc1.selectbox("Axe lignes", PARAMS, index=0, key="hm_row")
-            col_p = hc2.selectbox(
-                "Axe colonnes", [p for p in PARAMS if p != row_p], index=0, key="hm_col"
-            )
+            col_p = hc2.selectbox("Axe colonnes", [p for p in PARAMS if p != row_p], index=0, key="hm_col")
             total_for_hm = _third_param_filter(total_f, row_p, col_p, "hm")
             # La valeur du 3ème param est déjà encodée dans total_for_hm._entries
             # mais on l'encode aussi dans la clé via sa taille (suffisant pour invalider)
@@ -716,30 +687,26 @@ def render_tab_results() -> None:
                 lambda _rp=row_p, _cp=col_p: total_for_hm.plot_metric_heatmap(
                     row_param=_rp, col_param=_cp, metric="mean_distance", show=False
                 ),
-                "dl_g_hm", "metric_heatmap.png",
+                "dl_g_hm",
+                "metric_heatmap.png",
             )
 
         # ── Grille de comparaison ────────────────────────────────────────────
         with g_tabs[4]:
             st.caption(
-                "`total.plot_comparison_grid()` — matrices de distance côte à côte, "
-                "une par valeur du paramètre choisi"
+                "`total.plot_comparison_grid()` — matrices de distance côte à côte, une par valeur du paramètre choisi"
             )
-            vary_p = st.selectbox(
-                "Paramètre à faire varier", PARAMS, index=2, key="grid_vary"
-            )
+            vary_p = st.selectbox("Paramètre à faire varier", PARAMS, index=2, key="grid_vary")
             _cached_plot(
                 f"_plt_g_grid_{_filter_cache_key}_{vary_p}",
                 lambda _vp=vary_p: total_f.plot_comparison_grid(vary_param=_vp, show=False),
-                "dl_g_grid", "comparison_grid.png",
+                "dl_g_grid",
+                "comparison_grid.png",
             )
 
         # ── Paire de règles ──────────────────────────────────────────────────
         with g_tabs[5]:
-            st.caption(
-                "`total.plot_rule_pair_heatmap()` — distance Jaccard entre deux règles "
-                "croisée sur 2 paramètres"
-            )
+            st.caption("`total.plot_rule_pair_heatmap()` — distance Jaccard entre deux règles croisée sur 2 paramètres")
             # Cache avail_rules pour éviter d'itérer total_f à chaque rerun
             _rules_cache_key = f"_avail_rules_{_filter_cache_key}"
             if _rules_cache_key not in st.session_state:
@@ -762,16 +729,16 @@ def render_tab_results() -> None:
                 pr1, pr2 = st.columns(2)
                 rp_pair = pr1.selectbox("Axe lignes", PARAMS, index=0, key="pair_row")
                 cp_pair = pr2.selectbox(
-                    "Axe colonnes", [p for p in PARAMS if p != rp_pair],
-                    index=0, key="pair_col",
+                    "Axe colonnes",
+                    [p for p in PARAMS if p != rp_pair],
+                    index=0,
+                    key="pair_col",
                 )
                 _cached_plot(
                     f"_plt_g_pair_{_filter_cache_key}_{rule_a}_{rule_b}_{rp_pair}_{cp_pair}",
-                    lambda _ra=rule_a, _rb=rule_b, _rp=rp_pair, _cp=cp_pair: (
-                        total_f.plot_rule_pair_heatmap(
-                            _ra, _rb, row_param=_rp, col_param=_cp, show=False
-                        )
+                    lambda _ra=rule_a, _rb=rule_b, _rp=rp_pair, _cp=cp_pair: total_f.plot_rule_pair_heatmap(
+                        _ra, _rb, row_param=_rp, col_param=_cp, show=False
                     ),
-                    "dl_g_pair", f"pair_{rule_a}_{rule_b}.png",
+                    "dl_g_pair",
+                    f"pair_{rule_a}_{rule_b}.png",
                 )
-
