@@ -34,7 +34,6 @@ def _clear_cfg_widget_keys() -> None:
     # ---- Widgets simples (text_input, number_input, slider) ----
     # Écrire directement la valeur cfg dans session_state → priorité absolue.
     st.session_state["cfg_output_base_path"] = cfg.get("output_base_path", "../data/")
-    st.session_state["cfg_seed"] = int(cfg.get("seed", 42))
     st.session_state["gen_voters_input"] = ", ".join(str(v) for v in cfg.get("voters", []))
     st.session_state["gen_candidates_input"] = ", ".join(str(c) for c in cfg.get("candidates", []))
     st.session_state["gen_iterations_slider"] = int(cfg.get("iterations", 1000))
@@ -142,28 +141,12 @@ def render_tab_config() -> None:
     # -----------------------------------------------------------------------
     st.subheader("Paramètres de simulation")
 
-    col_path, col_seed = st.columns([3, 1])
-
-    with col_path:
-        new_path = st.text_input(
-            "Dossier de sortie (output_base_path)",
-            value=cfg.get("output_base_path", "../data/"),
-            key="cfg_output_base_path",
-            help="Répertoire racine pour gen/ et sim_result/ (relatif au dossier de config).",
-        )
-        cfg["output_base_path"] = new_path
-
-    with col_seed:
-        new_seed = st.number_input(
-            "Seed",
-            min_value=0,
-            max_value=2**31 - 1,
-            value=int(cfg.get("seed", 42)),
-            step=1,
-            key="cfg_seed",
-            help="Graine pour la reproductibilité.",
-        )
-        cfg["seed"] = int(new_seed)
+    new_path = st.text_input(
+        "Dossier de sortie (output_base_path)",
+        key="cfg_output_base_path",
+        help="Répertoire racine pour gen/ et sim_result/ (relatif au dossier de config).",
+    )
+    cfg["output_base_path"] = new_path
 
     st.divider()
 

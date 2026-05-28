@@ -200,7 +200,6 @@ def render_tab_generation() -> None:
     with col_v:
         voters_str = st.text_input(
             "Nombre de votants (liste)",
-            value=", ".join(str(v) for v in cfg.get("voters", [11, 101, 1001])),
             key="gen_voters_input",
             help="Entiers séparés par des virgules. Ex : 11, 101, 1001",
         )
@@ -213,7 +212,6 @@ def render_tab_generation() -> None:
     with col_c:
         candidates_str = st.text_input(
             "Nombre de candidats (liste)",
-            value=", ".join(str(c) for c in cfg.get("candidates", [3, 14])),
             key="gen_candidates_input",
             help="Entiers séparés par des virgules. Ex : 3, 14",
         )

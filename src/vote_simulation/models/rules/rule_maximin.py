@@ -52,7 +52,7 @@ def _build_maximin():
 # Rule registrations
 # ---------------------------------------------------------------------------
 
-register_rule("MMAX", _build_maximin())
+register_rule("MMIN", _build_maximin())
 
 if __name__ == "__main__":
     # Case 1 — clear winner

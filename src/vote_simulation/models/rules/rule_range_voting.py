@@ -1,4 +1,4 @@
-"""Range Voting (Average) wrapper with semantically correct co-winner detection.
+"""Range Voting (Average) wrapper
 
 Each voter grades every candidate on the interval [min_grade, max_grade].
 Co-winners are all candidates sharing the **maximum average grade**.
@@ -42,11 +42,6 @@ class RangeVotingResult(ScoreBasedRuleWrapper):
         self.cowinners_ = self._init_score_based()
 
 
-# ---------------------------------------------------------------------------
-# Factory
-# ---------------------------------------------------------------------------
-
-
 def _build_range_voting():
     """Return a :data:`~vote_simulation.models.rules.registry.RuleBuilder` for Range Voting."""
 
@@ -56,37 +51,4 @@ def _build_range_voting():
 
     return builder
 
-
-# ---------------------------------------------------------------------------
-# Rule registrations
-# ---------------------------------------------------------------------------
-
 register_rule("RV", _build_range_voting())
-
-if __name__ == "__main__":
-    # Case 1 — clear winner
-    result1 = RangeVotingResult(
-        _ensure_profile(
-            [[2, 1, 0], [2, 0, 1], [2, 1, 0]],
-            candidates={"A", "B", "C"},
-        )
-    )
-    print(f"Case 1 — clear winner:   scores_: {result1._inner.scores_}   cowinners_: {result1.cowinners_}")
-
-    # Case 2 — 3-way tie (all voters indifferent between all)
-    result2 = RangeVotingResult(
-        _ensure_profile(
-            [[1, 1, 1], [1, 1, 1]],
-            candidates={"A", "B", "C"},
-        )
-    )
-    print(f"Case 2 — 3-way tie:      scores_: {result2._inner.scores_}   cowinners_: {result2.cowinners_}")
-
-    # Case 3 — 2-way tie at top
-    result3 = RangeVotingResult(
-        _ensure_profile(
-            [[2, 2, 0], [2, 2, 0], [0, 0, 1]],
-            candidates={"A", "B", "C"},
-        )
-    )
-    print(f"Case 3 — 2-way tie:      scores_: {result3._inner.scores_}   cowinners_: {result3.cowinners_}")

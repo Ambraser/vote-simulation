@@ -1,7 +1,7 @@
-"""Iterated Bucklin method wrapper with semantically correct co-winner detection.
+"""Iterated Bucklin method wrapper.
 
 Iterated Bucklin eliminates the candidate with the lowest adjusted median
-Borda score each round (ties broken by highest index).  Co-winners are **all
+Borda score each round.  Co-winners are **all
 candidates that survive to the final elimination round** — those whose
 ``scores_[-1, c]`` is finite.
 
@@ -66,11 +66,6 @@ class IteratedBucklinResult(EliminationBasedRuleWrapper):
         self.cowinners_ = self._init_elimination_based()
 
 
-# ---------------------------------------------------------------------------
-# Factory
-# ---------------------------------------------------------------------------
-
-
 def _build_iterated_bucklin(
     *,
     cm_option: str = "lazy",
@@ -92,44 +87,4 @@ def _build_iterated_bucklin(
 
     return builder
 
-
-# ---------------------------------------------------------------------------
-# Rule registrations
-# ---------------------------------------------------------------------------
-
 register_rule("BUCK_I", _build_iterated_bucklin())
-register_rule("BUCK_I_EXACT", _build_iterated_bucklin(cm_option="exact"))
-
-if __name__ == "__main__":
-    # Case 1 — clear winner (candidate 0 has highest adjusted median every round)
-    result1 = IteratedBucklinResult(
-        _ensure_profile(
-            [[2, 1, 0], [2, 0, 1], [2, 1, 0]],
-            {"A", "B", "C"},
-        )
-    )
-    print("Case 1 — clear winner:")
-    print("  scores_:", result1.scores_)
-    print("  cowinners_:", result1.cowinners_)
-
-    # Case 2 — 3-way tie (all candidates equal adjusted median every round)
-    result2 = IteratedBucklinResult(
-        _ensure_profile(
-            [[2, 1, 0], [0, 2, 1], [1, 0, 2]],
-            {"A", "B", "C"},
-        )
-    )
-    print("Case 2 — 3-way tie:")
-    print("  scores_:", result2.scores_)
-    print("  cowinners_:", result2.cowinners_)
-
-    # Case 3 — two survive (third eliminated, remaining two tied)
-    result3 = IteratedBucklinResult(
-        _ensure_profile(
-            [[2, 1, 0], [2, 1, 0], [1, 2, 0], [1, 2, 0]],
-            {"A", "B", "C"},
-        )
-    )
-    print("Case 3 — two survivors:")
-    print("  scores_:", result3.scores_)
-    print("  cowinners_:", result3.cowinners_)

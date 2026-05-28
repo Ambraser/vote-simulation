@@ -1,4 +1,4 @@
-"""Kemeny method wrapper with semantically correct co-winner detection.
+"""Kemeny method wrapper.
 
 Kemeny finds the ranking of candidates that minimises the total Kendall-tau
 distance to all voters.  The top candidate in the optimal order is the winner.
@@ -42,11 +42,6 @@ class KemenyResult(ScoreBasedRuleWrapper):
         self.cowinners_ = self._init_score_based()
 
 
-# ---------------------------------------------------------------------------
-# Factory
-# ---------------------------------------------------------------------------
-
-
 def _build_kemeny(*, winner_option: str = "exact"):
     """Return a :data:`~vote_simulation.models.rules.registry.RuleBuilder` for Kemeny."""
 
@@ -57,43 +52,5 @@ def _build_kemeny(*, winner_option: str = "exact"):
     return builder
 
 
-# ---------------------------------------------------------------------------
-# Rule registrations
-# ---------------------------------------------------------------------------
-
 register_rule("KEME", _build_kemeny(winner_option="exact"))
 register_rule("KEME_LAZY", _build_kemeny(winner_option="lazy"))
-
-if __name__ == "__main__":
-    # Case 1 — clear Condorcet/Kemeny winner (candidate A preferred by all)
-    result1 = KemenyResult(
-        _ensure_profile(
-            [[2, 1, 0], [2, 0, 1], [2, 1, 0]],
-            {"A", "B", "C"},
-        )
-    )
-    print("Case 1 — clear winner:")
-    print("  scores_:", result1._inner.scores_)
-    print("  cowinners_:", result1.cowinners_)
-
-    # Case 2 — cyclic preferences (Condorcet cycle), two optimal orders tied
-    result2 = KemenyResult(
-        _ensure_profile(
-            [[2, 1, 0], [0, 2, 1], [1, 0, 2]],
-            {"A", "B", "C"},
-        )
-    )
-    print("Case 2 — Condorcet cycle:")
-    print("  scores_:", result2._inner.scores_)
-    print("  cowinners_:", result2.cowinners_)
-
-    # Case 3 — 2-way tie at the top
-    result3 = KemenyResult(
-        _ensure_profile(
-            [[2, 1, 0], [2, 1, 0], [1, 2, 0], [1, 2, 0]],
-            {"A", "B", "C"},
-        )
-    )
-    print("Case 3 — 2-way tie at top:")
-    print("  scores_:", result3._inner.scores_)
-    print("  cowinners_:", result3.cowinners_)

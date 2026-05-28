@@ -1,4 +1,4 @@
-"""Schulze method wrapper with semantically correct co-winner detection.
+"""Schulze method wrapper
 
 ``scores_[c, d]`` is the width of the widest path from candidate ``c`` to
 candidate ``d`` in the capacitated graph of pairwise duels.
@@ -43,12 +43,6 @@ class SchulzeResult(SvvampRuleWrapper):
         indices = np.where(potential)[0]
         return self._resolve_cowinners(indices)
 
-
-# ---------------------------------------------------------------------------
-# Factory
-# ---------------------------------------------------------------------------
-
-
 def _build_schulze():
     """Return a :data:`~vote_simulation.models.rules.registry.RuleBuilder` for Schulze."""
 
@@ -58,43 +52,4 @@ def _build_schulze():
 
     return builder
 
-
-# ---------------------------------------------------------------------------
-# Rule registrations
-# ---------------------------------------------------------------------------
-
 register_rule("SCHU", _build_schulze())
-
-if __name__ == "__main__":
-    # Case 1 — clear Condorcet winner (A beats all)
-    result1 = SchulzeResult(
-        _ensure_profile(
-            [[2, 1, 0], [2, 0, 1], [2, 1, 0]],
-            candidates={"A", "B", "C"},
-        )
-    )
-    print("Case 1 — clear winner:")
-    print("  scores_:\n", result1._inner.scores_)
-    print("  cowinners_:", result1.cowinners_)
-
-    # Case 2 — 3-way Condorcet cycle (A>B>C>A, each beat by 2 vs 1)
-    result2 = SchulzeResult(
-        _ensure_profile(
-            [[2, 1, 0], [0, 2, 1], [1, 0, 2]],
-            candidates={"A", "B", "C"},
-        )
-    )
-    print("Case 2 — 3-way Condorcet cycle:")
-    print("  scores_:\n", result2._inner.scores_)
-    print("  cowinners_:", result2.cowinners_)
-
-    # Case 3 — symmetric 2-way tie (A and B equally preferred over C)
-    result3 = SchulzeResult(
-        _ensure_profile(
-            [[2, 1, 0], [1, 2, 0], [2, 1, 0], [1, 2, 0]],
-            candidates={"A", "B", "C"},
-        )
-    )
-    print("Case 3 — 2-way tie:")
-    print("  scores_:\n", result3._inner.scores_)
-    print("  cowinners_:", result3.cowinners_)

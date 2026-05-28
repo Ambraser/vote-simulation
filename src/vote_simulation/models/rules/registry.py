@@ -109,8 +109,6 @@ def _compute_cowinners(rule: object) -> list[str]:
 
 
 def _ensure_cowinners(rule: Any) -> RuleResult:
-    # print(rule)
-
     if hasattr(rule, "ws"):
         rule.cowinners_ = rule.ws
         return rule

@@ -427,14 +427,3 @@ class DataInstance:
             "row_order": row_order,
             "col_order": col_order,
         }
-
-
-if __name__ == "__main__":
-    # Example usage:
-    di = DataInstance.from_generator(model_code="UNI", n_v=100, n_c=5, seed=42)
-    di = DataInstance.from_generator(model_code="EUCLID_1D", n_v=100, n_c=5, seed=42)
-    di = DataInstance.from_generator(model_code="EUCLID_2D", n_v=100, n_c=15, seed=42)
-    di = DataInstance.from_generator(model_code="EUCLID_5D", n_v=100, n_c=15, seed=42)
-    print("Candidates:", di.candidates)
-    print("Utility matrix shape:", di.data.shape)
-    di.plot_heatmap(cluster_columns=True, cluster_rows=False, title="Uniform Model Heatmap")

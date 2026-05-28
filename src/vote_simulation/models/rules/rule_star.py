@@ -1,5 +1,4 @@
-"""STAR (Score Then Automatic Runoff) wrapper with semantically correct
-co-winner detection.
+"""STAR (Score Then Automatic Runoff) wrapper.
 
 STAR proceeds in two stages:
 
@@ -14,13 +13,6 @@ STAR proceeds in two stages:
 Grade bounds are derived automatically from the profile's utility matrix so
 that the clip transformation (``rescale_grades=False``) is consistent with
 the actual utility range.
-
-Co-winner semantics
--------------------
-*Finalists* are all candidates whose round-0 score is at least as large as
-the 2nd-highest distinct round-0 score (i.e., ties at the boundary are
-included).  Among finalists, co-winners are those sharing the maximum
-round-1 (runoff) score.
 """
 
 from __future__ import annotations
@@ -75,10 +67,6 @@ class STARResult(SvvampRuleWrapper):
         return self._resolve_cowinners(np.where(cowin_mask)[0])
 
 
-# ---------------------------------------------------------------------------
-# Factory
-# ---------------------------------------------------------------------------
-
 
 def _build_star():
     """Return a :data:`~vote_simulation.models.rules.registry.RuleBuilder` for STAR."""
@@ -89,43 +77,4 @@ def _build_star():
 
     return builder
 
-
-# ---------------------------------------------------------------------------
-# Rule registrations
-# ---------------------------------------------------------------------------
-
 register_rule("STAR", _build_star())
-
-if __name__ == "__main__":
-    # Case 1 — clear winner (A top score and wins runoff)
-    result1 = STARResult(
-        _ensure_profile(
-            [[2, 1, 0], [2, 0, 1], [2, 1, 0]],
-            candidates={"A", "B", "C"},
-        )
-    )
-    print("Case 1 — clear winner:")
-    print("  scores_:\n", result1._inner.scores_)
-    print("  cowinners_:", result1.cowinners_)
-
-    # Case 2 — runoff tie between top-2 finalists
-    result2 = STARResult(
-        _ensure_profile(
-            [[2, 1, 0], [1, 2, 0], [2, 1, 0], [1, 2, 0]],
-            candidates={"A", "B", "C"},
-        )
-    )
-    print("Case 2 — runoff tie:")
-    print("  scores_:\n", result2._inner.scores_)
-    print("  cowinners_:", result2.cowinners_)
-
-    # Case 3 — tie for 1st in score stage, A and B go to runoff, A wins
-    result3 = STARResult(
-        _ensure_profile(
-            [[2, 2, 0], [2, 2, 0], [2, 2, 1]],
-            candidates={"A", "B", "C"},
-        )
-    )
-    print("Case 3 — score tie, A wins runoff:")
-    print("  scores_:\n", result3._inner.scores_)
-    print("  cowinners_:", result3.cowinners_)

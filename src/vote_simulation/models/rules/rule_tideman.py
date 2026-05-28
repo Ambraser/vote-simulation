@@ -57,10 +57,6 @@ class TidemanResult(SvvampRuleWrapper):
         return self._resolve_cowinners(survivors_last)
 
 
-# ---------------------------------------------------------------------------
-# Factory
-# ---------------------------------------------------------------------------
-
 
 def _build_tideman():
     """Return a :data:`~vote_simulation.models.rules.registry.RuleBuilder` for Tideman."""
@@ -72,42 +68,4 @@ def _build_tideman():
     return builder
 
 
-# ---------------------------------------------------------------------------
-# Rule registrations
-# ---------------------------------------------------------------------------
-
 register_rule("TIDE", _build_tideman())
-
-if __name__ == "__main__":
-    # Case 1 — clear Condorcet winner
-    result1 = TidemanResult(
-        _ensure_profile(
-            [[2, 1, 0], [2, 0, 1], [2, 1, 0]],
-            candidates={"A", "B", "C"},
-        )
-    )
-    print("Case 1 — clear winner:")
-    print("  scores_:\n", result1._inner.scores_)
-    print("  cowinners_:", result1.cowinners_)
-
-    # Case 2 — 3-way Condorcet cycle → all survive to final round
-    result2 = TidemanResult(
-        _ensure_profile(
-            [[2, 1, 0], [0, 2, 1], [1, 0, 2]],
-            candidates={"A", "B", "C"},
-        )
-    )
-    print("Case 2 — 3-way cycle:")
-    print("  scores_:\n", result2._inner.scores_)
-    print("  cowinners_:", result2.cowinners_)
-
-    # Case 3 — C eliminated first, A and B survive tied
-    result3 = TidemanResult(
-        _ensure_profile(
-            [[2, 1, 0], [2, 1, 0], [1, 2, 0], [1, 2, 0]],
-            candidates={"A", "B", "C"},
-        )
-    )
-    print("Case 3 — 2-way tie after elimination:")
-    print("  scores_:\n", result3._inner.scores_)
-    print("  cowinners_:", result3.cowinners_)

@@ -63,11 +63,6 @@ class CoombsResult(SvvampRuleWrapper):
         return self._resolve_cowinners(np.flatnonzero(last == np.max(last)))
 
 
-# ---------------------------------------------------------------------------
-# Factory
-# ---------------------------------------------------------------------------
-
-
 def _build_coombs(*, cm_option: str = "fast"):
     def builder(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> RuleResult:
         profile = _ensure_profile(profile_or_ballots, candidates)
@@ -76,37 +71,4 @@ def _build_coombs(*, cm_option: str = "fast"):
     return builder
 
 
-# ---------------------------------------------------------------------------
-# Rule registrations
-# ---------------------------------------------------------------------------
-
 register_rule("COOM", _build_coombs(cm_option="fast"))
-register_rule("COOM_EXACT", _build_coombs(cm_option="exact"))
-
-
-# ---------------------------------------------------------------------------
-# Quick smoke-test
-# ---------------------------------------------------------------------------
-
-if __name__ == "__main__":
-    # Case 1: clear winner
-    p1 = Profile(
-        preferences_rk=np.array([[0, 1, 2], [0, 1, 2], [0, 2, 1]]),
-        labels_candidates=["A", "B", "C"],
-    )
-    r1 = CoombsResult(p1)
-    print("Case 1 — clear winner:")
-    print("  scores_:\n", r1._inner.scores_)
-    print("  cowinners_:", r1.cowinners_)  # expected: ['A']
-
-    # Case 2: two candidates tie in the final round
-    # 4 voters: A and B each get 2 last-place votes in round 0 C eliminated by CTB (highest index)
-    # Round 1: A and B remain, equal last-place votes  tie
-    p2 = Profile(
-        preferences_rk=np.array([[0, 1, 2], [1, 0, 2], [0, 2, 1], [1, 2, 0]]),
-        labels_candidates=["A", "B", "C"],
-    )
-    r2 = CoombsResult(p2)
-    print("\nCase 2 — tie in final round:")
-    print("  scores_:\n", r2._inner.scores_)
-    print("  cowinners_:", r2.cowinners_)  # expected: ['A', 'B']

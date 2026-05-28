@@ -4,15 +4,6 @@ Any rule where the winner is simply the candidate(s) with the highest
 1-D ``scores_`` array can subclass :class:`ScoreBasedRuleWrapper` and get
 co-winner detection for free.
 
-Known rules that fit this pattern
-----------------------------------
-* **Approval** — ``scores_[c]`` = number of approving voters (integer).
-* **Copeland** — ``scores_[c]`` = number of pairwise victories (float).
-* **Borda** — ``scores_[c]`` = Borda sum (integer or float).
-* **Plurality** — ``scores_[c]`` = number of first-place votes (integer).
-* **Maximin** — ``scores_[c]`` = min pairwise score (float).
-* **Veto** — ``scores_[c]`` = votes *not* in last place (integer).
-* … (any rule where ``scores_`` is 1-D and higher = better)
 
 Usage
 ------

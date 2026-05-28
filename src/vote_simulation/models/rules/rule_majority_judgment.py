@@ -1,4 +1,4 @@
-"""Majority Judgment wrapper with semantically correct co-winner detection.
+"""Majority Judgment wrapper.
 
 Majority Judgment elects the candidate with the highest median grade.
 Ties on the median are broken by the adjusted majority grade: if more voters
@@ -9,9 +9,6 @@ grade candidate ``c`` above the median than below, the tie-breaker is ``+p``
 
 - ``scores_[0, c]`` — median grade of candidate ``c``.
 - ``scores_[1, c]`` — ``p`` if ``p > q``, else ``-q``.
-
-Co-winners are **all** candidates that share the **lexicographically maximum**
-pair ``(scores_[0, c], scores_[1, c])``.
 
 Note: grades are set to ``rescale_grades=False`` so that ``preferences_ut``
 values are used directly (clipped to ``[min_grade, max_grade]``), ensuring
@@ -83,10 +80,6 @@ class MajorityJudgmentResult(SvvampRuleWrapper):
         return self._labels_for(np.flatnonzero(winners_mask))
 
 
-# ---------------------------------------------------------------------------
-# Factory
-# ---------------------------------------------------------------------------
-
 
 def _build_majority_judgment(
     *,
@@ -107,44 +100,4 @@ def _build_majority_judgment(
 
     return builder
 
-
-# ---------------------------------------------------------------------------
-# Rule registrations
-# ---------------------------------------------------------------------------
-
 register_rule("MJ", _build_majority_judgment())
-register_rule("MJ_RESCALE", _build_majority_judgment(rescale_grades=True))
-
-if __name__ == "__main__":
-    # Case 1 — clear winner: A receives highest grades from everyone
-    result1 = MajorityJudgmentResult(
-        _ensure_profile(
-            [[2, 1, 0], [2, 0, 1], [2, 1, 0]],
-            {"A", "B", "C"},
-        )
-    )
-    print("Case 1 — clear winner:")
-    print("  scores_:", result1.scores_)
-    print("  cowinners_:", result1.cowinners_)
-
-    # Case 2 — 3-way tie at median and tie-breaker
-    result2 = MajorityJudgmentResult(
-        _ensure_profile(
-            [[2, 1, 0], [0, 2, 1], [1, 0, 2]],
-            {"A", "B", "C"},
-        )
-    )
-    print("Case 2 — 3-way tie:")
-    print("  scores_:", result2.scores_)
-    print("  cowinners_:", result2.cowinners_)
-
-    # Case 3 — 2-way tie: A and B have equal median and tie-breaker, C lower
-    result3 = MajorityJudgmentResult(
-        _ensure_profile(
-            [[2, 1, 0], [2, 1, 0], [1, 2, 0], [1, 2, 0]],
-            {"A", "B", "C"},
-        )
-    )
-    print("Case 3 — 2-way tie:")
-    print("  scores_:", result3.scores_)
-    print("  cowinners_:", result3.cowinners_)

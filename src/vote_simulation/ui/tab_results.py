@@ -679,9 +679,9 @@ def render_tab_results() -> None:
             row_p = hc1.selectbox("Axe lignes", PARAMS, index=0, key="hm_row")
             col_p = hc2.selectbox("Axe colonnes", [p for p in PARAMS if p != row_p], index=0, key="hm_col")
             total_for_hm = _third_param_filter(total_f, row_p, col_p, "hm")
-            # La valeur du 3ème param est déjà encodée dans total_for_hm._entries
-            # mais on l'encode aussi dans la clé via sa taille (suffisant pour invalider)
-            _hm_third_tag = len(total_for_hm._entries)
+            # Utilise la valeur sélectionnée du 3ème param comme discriminant de cache
+            # (len(_entries) ne suffit pas : deux valeurs différentes peuvent avoir le même count)
+            _hm_third_tag = st.session_state.get("hm_third", "")
             _cached_plot(
                 f"_plt_g_hm_{_filter_cache_key}_{row_p}_{col_p}_{_hm_third_tag}",
                 lambda _rp=row_p, _cp=col_p: total_for_hm.plot_metric_heatmap(

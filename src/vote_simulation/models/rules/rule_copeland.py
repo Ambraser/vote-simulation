@@ -84,17 +84,6 @@ class CopelandResult(ScoreBasedRuleWrapper):
         profiles with equal utilities produce equal scores — and thus correct
         co-winner sets — regardless of rank-breaking used internally by svvamp.
         """
-        # mv = np.asarray(self.profile_.matrix_victories_ut_abs, dtype=float)
-        # n_c = mv.shape[0]
-        # scores = np.zeros(n_c, dtype=float)
-        # for c in range(n_c):
-        #    for d in range(n_c):
-        #        if c == d:
-        #            continue
-        #        if mv[c, d] > mv[d, c]:
-        #            scores[c] += 1.0
-        #        elif mv[c, d] == mv[d, c]:
-        #            scores[c] += 0.5
         return self._max_score_cowinners(self._inner.scores_)
 
 
@@ -137,14 +126,4 @@ def _build_copeland(
     return builder
 
 
-# ---------------------------------------------------------------------------
-# Rule registrations
-# ---------------------------------------------------------------------------
-
 register_rule("COPE", _build_copeland(cm_option="fast"))
-
-# Variant: all options set to 'exact' (slower but fully precise)
-register_rule(
-    "COPE_EXACT",
-    _build_copeland(cm_option="exact", im_option="exact", um_option="exact", tm_option="exact"),
-)

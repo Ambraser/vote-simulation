@@ -14,7 +14,6 @@ and generating labels for results based on their parameters.
 
 from __future__ import annotations
 
-from builtins import max as builtins_max
 from dataclasses import dataclass, field
 
 
@@ -63,7 +62,7 @@ class ResultConfig:
             n_voters=self.n_voters | other.n_voters,
             n_candidates=self.n_candidates | other.n_candidates,
             rules_codes=self.rules_codes | other.rules_codes,
-            n_iterations=builtins_max(self.n_iterations, other.n_iterations),
+            n_iterations=max(self.n_iterations, other.n_iterations),
         )
 
     def base_config(self) -> ResultConfig:

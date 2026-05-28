@@ -80,33 +80,4 @@ def _build_young():
 
     return builder
 
-
-# ---------------------------------------------------------------------------
-# Rule registrations
-# ---------------------------------------------------------------------------
-
 register_rule("YOUN", _build_young())
-
-
-if __name__ == "__main__":
-    from vote_simulation.models.rules.registry import _ensure_profile
-
-    # Case 1: clear Condorcet winner — A beats everyone pairwise
-    p1 = _ensure_profile(
-        [[2, 1, 0], [2, 0, 1], [2, 1, 0]],
-        candidates={"A", "B", "C"},
-    )
-    r1 = YoungResult(p1)
-    print("Case 1 — Condorcet winner exists:")
-    print("  w_:", r1._inner.w_)
-    print("  cowinners_:", r1.cowinners_)  # expected: ['A']
-
-    # Case 2: Condorcet cycle — A>B>C>A → no winner
-    p2 = _ensure_profile(
-        [[2, 1, 0], [0, 2, 1], [1, 0, 2]],
-        candidates={"A", "B", "C"},
-    )
-    r2 = YoungResult(p2)
-    print("\nCase 2 — Condorcet cycle (no winner):")
-    print("  w_:", r2._inner.w_)
-    print("  cowinners_:", r2.cowinners_)  # expected: []

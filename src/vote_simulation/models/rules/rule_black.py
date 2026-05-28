@@ -1,8 +1,8 @@
-"""Black rule wrapper with semantically correct co-winner detection.
+"""Black rule wrapper with semantically.
 
 Black's algorithm:
-1. If a (strict) Condorcet winner exists → elect them (unique by definition).
-2. Otherwise → elect the candidate(s) with the highest Borda score.
+1. If a (strict) Condorcet winner exists : elect them (unique by definition).
+2. Otherwise :elect the candidate(s) with the highest Borda score.
 
 ``scores_`` layout (2-D, shape ``[2, n_candidates]``):
 
@@ -121,38 +121,4 @@ def _build_black(
     return builder
 
 
-# ---------------------------------------------------------------------------
-# Rule registrations
-# ---------------------------------------------------------------------------
-
 register_rule("BLAC", _build_black(cm_option="exact"))
-register_rule("BLAC_LAZY", _build_black(cm_option="lazy"))
-
-if __name__ == "__main__":
-    from vote_simulation.models.rules import get_rule_builder
-
-    print("MRO:", [c.__name__ for c in BlackResult.__mro__])
-    print()
-
-    # Case 1: Condorcet winner (from svvamp doc example)
-    preferences_rk = np.array([[0, 1, 2], [0, 2, 1], [1, 0, 2], [2, 0, 1], [2, 1, 0]])
-    p = Profile(
-        preferences_ut=np.zeros_like(preferences_rk, dtype=float),
-        preferences_rk=preferences_rk,
-        labels_candidates=["A", "B", "C"],
-    )
-    r_inner = RuleBlack()(p)
-    print("scores_:", r_inner.scores_)
-    res = get_rule_builder("BLAC")(p, None)
-    print("Condorcet case  cowinners_:", res.cowinners_, "  (expected: [A])")
-    print()
-
-    # Case 2: no Condorcet winner Borda fallback with tie
-    # A and B have same Borda score, no Condorcet winner
-    p2 = _ensure_profile(([[1, 0, 0], [0, 1, 0], [0, 0, 1]]), candidates={"A", "B", "C"})
-    p2.demo()
-    r2_inner = RuleBlack()(p2)
-    print("scores_:", r2_inner.candidates_by_scores_best_to_worst_)
-    print("scores_ (no Condorcet):", r2_inner.scores_)
-    res2 = get_rule_builder("BLAC")(p2, None)
-    print("Borda fallback  cowinners_:", res2.cowinners_)

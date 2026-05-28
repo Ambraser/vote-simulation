@@ -8,7 +8,7 @@ that each metric reflects the distribution for the whole winning set at once.
 Available metrics
 -----------------
 social_acceptability
-    Fraction of voters who give a strictly positive utility to **at least one**
+    Fraction of voters who give a >0.5 utility to **at least one**
     co-winner.  Ranges in [0, 1].
 utility_mean / utility_median / utility_var
     Mean, median and variance of utilities ``preferences_ut[v, c]`` across all
@@ -23,6 +23,8 @@ freq_last
     Fraction of voters who rank **at least one** co-winner last.
 has_tie
     ``True`` iff there are strictly more than one co-winner.
+n_cowinners
+    Number of co-winners.
 
 Design notes
 ~~~~~~~~~~~~
@@ -147,7 +149,6 @@ def compute_winner_metrics(
     there is no redundant computation across successive calls.
     """
     idx = np.asarray(cowinner_indices, dtype=int)
-    # n_v: int = int(profile.n_v)  # ruff ignore
     n_c: int = int(profile.n_c)
     n_w: int = int(idx.size)
     has_tie = n_w > 1

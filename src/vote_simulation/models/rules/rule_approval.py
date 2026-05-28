@@ -1,4 +1,4 @@
-"""Approval voting wrapper with semantically correct co-winner detection.
+"""Approval voting wrapper.
 
 Co-winners are all candidates sharing the **maximum approval score**
 (i.e. maximum number of voters who approve them), regardless of the
@@ -19,7 +19,6 @@ Threshold-based (``approval_comparator='>'`` unless noted):
 Code              threshold     comparator
 ================  ============  ==============
 ``AP_T0``         0             ``>``
-``AP_T0GE``       0             ``>=``
 ``AP_T05``        0.5           ``>``
 ``AP_T05GE``      0.5           ``>=``
 ``AP_T06``        0.6           ``>``
@@ -130,7 +129,6 @@ def _build_approval(
 
 # Threshold = 0 (default svvamp behaviour)
 register_rule("AP_T0", _build_approval(approval_threshold=0.0, approval_comparator=">"))
-register_rule("AP_T0GE", _build_approval(approval_threshold=0.0, approval_comparator=">="))
 
 # Threshold = 0.5
 register_rule("AP_T05", _build_approval(approval_threshold=0.5, approval_comparator=">"))
@@ -148,20 +146,3 @@ register_rule("AP_T08", _build_approval(approval_threshold=0.8, approval_compara
 
 # Threshold = 0.9
 register_rule("AP_T09", _build_approval(approval_threshold=0.9, approval_comparator=">"))
-
-
-if __name__ == "__main__":
-    import numpy as np
-
-    # Example usage
-    profile = Profile(
-        preferences_ut=np.array([[1.0, -1.0], [-1.0, 1.0]]),
-        labels_candidates=["A", "B"],
-    )
-
-    profile.demo()
-
-    p = _ensure_profile(profile)  # just to demonstrate that it works with profiles directly
-    p.demo()
-    result = ApprovalResult(profile, approval_threshold=0.0)
-    print(f"Co-winners: {result.cowinners_}")

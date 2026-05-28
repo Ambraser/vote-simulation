@@ -11,8 +11,7 @@ than the matrix of duels, unlike Kemeny).
     The Slater method is NP-hard.  When several orderings are equally optimal,
     svvamp returns the **first lexicographic one**, so only a single winner is
     reported.  Detecting all tied co-winners would require enumerating all
-    optimal Slater orders — not feasible in general.  The tie-detection test
-    for this rule is therefore marked ``xfail``.
+    optimal Slater orders — not feasible in general. 
 """
 
 from __future__ import annotations
@@ -63,22 +62,3 @@ def _build_slater():
 # ---------------------------------------------------------------------------
 
 register_rule("SLAT", _build_slater())
-
-if __name__ == "__main__":
-    # Case 1 — clear Condorcet winner
-    result1 = SlaterResult(
-        _ensure_profile(
-            [[2, 1, 0], [2, 0, 1], [2, 1, 0]],
-            candidates={"A", "B", "C"},
-        )
-    )
-    print(f"Case 1 — clear winner:   scores_: {result1._inner.scores_}   cowinners_: {result1.cowinners_}")
-
-    # Case 2 — Condorcet cycle (A>B>C>A each 2-1)
-    result2 = SlaterResult(
-        _ensure_profile(
-            [[2, 1, 0], [0, 2, 1], [1, 0, 2]],
-            candidates={"A", "B", "C"},
-        )
-    )
-    print(f"Case 2 — 3-way cycle:    scores_: {result2._inner.scores_}   cowinners_: {result2.cowinners_}")

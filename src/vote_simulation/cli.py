@@ -3,8 +3,6 @@
 import typer
 from rich.console import Console
 
-# from vote_simulation import utils
-
 app = typer.Typer()
 console = Console()
 

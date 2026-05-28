@@ -1,4 +1,4 @@
-"""Baldwin method wrapper with semantically correct co-winner detection.
+"""Baldwin method wrapper.
 
 Baldwin eliminates the candidate with the lowest Borda score each round
 (ties broken by highest index).  Co-winners are **all candidates that
@@ -64,12 +64,6 @@ class BaldwinResult(EliminationBasedRuleWrapper):
         self.candidates_worst_to_best_ = self._inner.candidates_by_scores_best_to_worst_
         self.cowinners_ = self._init_elimination_based()
 
-
-# ---------------------------------------------------------------------------
-# Factory
-# ---------------------------------------------------------------------------
-
-
 def _build_baldwin(
     *,
     cm_option: str = "exact",
@@ -92,29 +86,4 @@ def _build_baldwin(
     return builder
 
 
-# ---------------------------------------------------------------------------
-# Rule registrations
-# ---------------------------------------------------------------------------
-
-register_rule("BALD", _build_baldwin(cm_option="exact"))
-register_rule("BALD_FAST", _build_baldwin(cm_option="fast"))
-
-if __name__ == "__main__":
-    # Quick test: run Baldwin on the reference profile and check co-winners.
-    ballot = [
-        [1, 0, 0],
-        [0, 1, 0],
-        [0, 0, 1],
-    ]
-
-    # if isinstance(ballot, list):
-    #    ballot = np.array(ballot, dtype=np.float64)
-
-    profile = _ensure_profile(ballot, {"A", "B", "C"})
-    # profile.demo()
-    result = BaldwinResult(_ensure_profile(ballot, {"A", "B", "C"}))
-    print(result.scores_)
-    print(result.candidates_worst_to_best_)
-    print(result.cowinners_)
-#    .demo()
-#    assert sorted(result.cowinners_) == sorted(EXPECTED_REFERENCE_COWINNERS[2][1])
+register_rule("BALD", _build_baldwin(cm_option="fast"))

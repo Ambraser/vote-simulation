@@ -1,4 +1,4 @@
-"""Borda rule wrapper with co-winner detection.
+"""Borda rule wrapper.
 
 Co-winners are all candidates sharing the **maximum Borda score**
 (total points received across all voters), regardless of the index-based
@@ -49,11 +49,6 @@ class BordaResult(ScoreBasedRuleWrapper):
         self.cowinners_ = self._init_score_based()
 
 
-# ---------------------------------------------------------------------------
-# Factory
-# ---------------------------------------------------------------------------
-
-
 def _build_borda(*, cm_option: str = "fast"):
     """Return a :data:`~vote_simulation.models.rules.registry.RuleBuilder` for Borda.
 
@@ -69,35 +64,4 @@ def _build_borda(*, cm_option: str = "fast"):
 
     return builder
 
-
-# ---------------------------------------------------------------------------
-# Rule registrations
-# ---------------------------------------------------------------------------
-
 register_rule("BORD", _build_borda(cm_option="fast"))
-register_rule("BORD_EXACT", _build_borda(cm_option="exact"))
-
-
-if __name__ == "__main__":
-    import numpy as np
-    from svvamp import Profile
-
-    # Case 1: clear winner
-    p1 = Profile(
-        preferences_rk=np.array([[0, 1, 2], [0, 1, 2], [0, 2, 1]]),
-        labels_candidates=["A", "B", "C"],
-    )
-    r1 = BordaResult(p1)
-    print("Case 1 — clear winner:")
-    print("  scores_   :", r1._inner.scores_)
-    print("  cowinners_:", r1.cowinners_)  # expected: ['A']
-
-    # Case 2: three-way Borda tie (Condorcet cycle → equal Borda scores)
-    p2 = Profile(
-        preferences_rk=np.array([[0, 1, 2], [1, 2, 0], [2, 0, 1]]),
-        labels_candidates=["A", "B", "C"],
-    )
-    r2 = BordaResult(p2)
-    print("\nCase 2 — three-way Borda tie (Condorcet cycle):")
-    print("  scores_   :", r2._inner.scores_)
-    print("  cowinners_:", r2.cowinners_)  # expected: ['A', 'B', 'C']

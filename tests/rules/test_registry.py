@@ -96,24 +96,6 @@ def test_register_rule():
         )
 
 
-#
-# def test_ensure_profile_preserves_equal_score_ties_from_ballots():
-#    """Registry conversion should keep equal scores at the same rank."""
-#    profile = _ensure_profile(
-#        [
-#            {"Candidate 1": 0.0, "Candidate 2": 0.0, "Candidate 3": -1.0},
-#            {"Candidate 1": 1.0, "Candidate 2": 0.0, "Candidate 3": 0.0},
-#        ],
-#        None,
-#    )
-#
-#    preferences_rk = np.asarray(profile.preferences_rk, dtype=int)
-#    assert preferences_rk[0, 0] == preferences_rk[0, 1]
-#    assert preferences_rk[1, 1] == preferences_rk[1, 2]
-#    assert preferences_rk[0, 0] < preferences_rk[0, 2]
-#    assert preferences_rk[1, 0] < preferences_rk[1, 1]
-
-
 def test_ensure_profile_accepts_list_ballots_with_candidates():
     """Registry conversion should also accept plain utility matrices."""
     profile = _ensure_profile(
@@ -150,12 +132,6 @@ def test_approval_threshold():
     """The approval rule should keep its configured threshold."""
     rule_instance = assert_rule_cowinners("AP_T", ["Candidate 1"])
     assert cast(Any, rule_instance).approval_threshold == 0.7
-
-
-def test_k_approval():
-    """The k-approval rule should keep its configured k value."""
-    rule_instance = assert_rule_cowinners("AP_K", ["Candidate 1"])
-    assert cast(Any, rule_instance).k == 2
 
 
 @pytest.mark.parametrize("rule_code", _TIE_PARAMETRIZE)

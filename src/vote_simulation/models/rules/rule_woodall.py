@@ -65,11 +65,6 @@ class WoodallResult(SvvampRuleWrapper):
         return self._resolve_cowinners(np.flatnonzero(last == np.max(last)))
 
 
-# ---------------------------------------------------------------------------
-# Factory
-# ---------------------------------------------------------------------------
-
-
 def _build_woodall():
     def builder(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> RuleResult:
         profile = _ensure_profile(profile_or_ballots, candidates)
@@ -77,43 +72,4 @@ def _build_woodall():
 
     return builder
 
-
-# ---------------------------------------------------------------------------
-# Rule registrations
-# ---------------------------------------------------------------------------
-
 register_rule("WOOD", _build_woodall())
-
-
-if __name__ == "__main__":
-    from vote_simulation.models.rules.registry import _ensure_profile
-
-    # Case 1: clear winner — A gets majority first-place votes immediately
-    p1 = _ensure_profile(
-        [[2, 1, 0], [2, 0, 1], [2, 1, 0]],
-        candidates={"A", "B", "C"},
-    )
-    r1 = WoodallResult(p1)
-    print("Case 1 — clear majority winner:")
-    print("  scores_:\n", r1._inner.scores_)
-    print("  cowinners_:", r1.cowinners_)  # expected: ['A']
-
-    # Case 2: 3-way first-place tie at round 0 → all co-winners
-    p2 = _ensure_profile(
-        [[2, 1, 0], [1, 0, 2], [0, 2, 1]],
-        candidates={"A", "B", "C"},
-    )
-    r2 = WoodallResult(p2)
-    print("\nCase 2 — 3-way tie at round 0:")
-    print("  scores_:\n", r2._inner.scores_)
-    print("  cowinners_:", r2.cowinners_)  # expected: ['A', 'B', 'C']
-
-    # Case 3: elimination then tie — A and B survive with equal counts
-    p3 = _ensure_profile(
-        [[2, 1, 0], [2, 0, 1], [1, 2, 0], [0, 2, 1]],
-        candidates={"A", "B", "C"},
-    )
-    r3 = WoodallResult(p3)
-    print("\nCase 3 — elimination then 2-way tie:")
-    print("  scores_:\n", r3._inner.scores_)
-    print("  cowinners_:", r3.cowinners_)  # expected: ['A', 'B']

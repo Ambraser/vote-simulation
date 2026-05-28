@@ -34,11 +34,6 @@ class SplitCycleResult(ScoreBasedRuleWrapper):
         self.cowinners_ = self._init_score_based()
 
 
-# ---------------------------------------------------------------------------
-# Factory
-# ---------------------------------------------------------------------------
-
-
 def _build_split_cycle():
     """Return a :data:`~vote_simulation.models.rules.registry.RuleBuilder` for Split Cycle."""
 
@@ -48,37 +43,4 @@ def _build_split_cycle():
 
     return builder
 
-
-# ---------------------------------------------------------------------------
-# Rule registrations
-# ---------------------------------------------------------------------------
-
 register_rule("SPCY", _build_split_cycle())
-
-if __name__ == "__main__":
-    # Case 1 — clear Condorcet winner
-    result1 = SplitCycleResult(
-        _ensure_profile(
-            [[2, 1, 0], [2, 0, 1], [2, 1, 0]],
-            candidates={"A", "B", "C"},
-        )
-    )
-    print(f"Case 1 — clear winner:   scores_: {result1._inner.scores_}   cowinners_: {result1.cowinners_}")
-
-    # Case 2 — 3-way Condorcet cycle → all candidates tied
-    result2 = SplitCycleResult(
-        _ensure_profile(
-            [[2, 1, 0], [0, 2, 1], [1, 0, 2]],
-            candidates={"A", "B", "C"},
-        )
-    )
-    print(f"Case 2 — 3-way cycle:    scores_: {result2._inner.scores_}   cowinners_: {result2.cowinners_}")
-
-    # Case 3 — 2-way tie (A and B both beat C, draw between themselves)
-    result3 = SplitCycleResult(
-        _ensure_profile(
-            [[2, 1, 0], [1, 2, 0], [2, 1, 0], [1, 2, 0]],
-            candidates={"A", "B", "C"},
-        )
-    )
-    print(f"Case 3 — 2-way tie:      scores_: {result3._inner.scores_}   cowinners_: {result3.cowinners_}")

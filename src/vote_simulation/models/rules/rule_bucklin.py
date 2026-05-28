@@ -1,4 +1,4 @@
-"""Bucklin rule wrapper with semantically correct co-winner detection.
+"""Bucklin rule wrapper.
 
 Co-winners are **all** candidates that share the maximum accrued score at the
 first counting round where at least one candidate strictly exceeds ``n_v / 2``
@@ -59,11 +59,6 @@ class BucklinResult(SvvampRuleWrapper):
         return self._resolve_cowinners(np.flatnonzero(last == np.max(last)))
 
 
-# ---------------------------------------------------------------------------
-# Factory
-# ---------------------------------------------------------------------------
-
-
 def _build_bucklin():
     def builder(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> RuleResult:
         profile = _ensure_profile(profile_or_ballots, candidates)
@@ -72,38 +67,5 @@ def _build_bucklin():
     return builder
 
 
-# ---------------------------------------------------------------------------
-# Rule registrations
-# ---------------------------------------------------------------------------
-
 register_rule("BUCK_R", _build_bucklin())
 
-
-# ---------------------------------------------------------------------------
-# Quick smoke-test
-# ---------------------------------------------------------------------------
-
-if __name__ == "__main__":
-    # Case 1: clear winner in round 1
-    p1 = Profile(
-        preferences_rk=np.array([[0, 1, 2], [0, 1, 2], [0, 2, 1]]),
-        labels_candidates=["A", "B", "C"],
-    )
-
-    r1 = BucklinResult(p1)
-    print("Case 1 — clear majority winner:")
-    print("  scores_:\n", r1._inner.scores_)
-    print("  cowinners_:", r1.cowinners_)  # expected: ['A']
-
-    # Case 2: tie at deciding round — two candidates share max above n_v/2
-
-    p2 = Profile(
-        preferences_rk=np.array([[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0]]),
-        labels_candidates=["A", "B", "C"],
-    )
-    p2.demo()
-    r2 = BucklinResult(p2)
-    print("\nCase 2 — tie at deciding round:")
-    print("  scores_:\n", r2._inner.scores_)
-    print("  n_v:", r2.profile_.n_v)
-    print("  cowinners_:", r2.cowinners_)  # expected: ['A', 'B']

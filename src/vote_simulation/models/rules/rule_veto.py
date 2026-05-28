@@ -35,11 +35,6 @@ class VetoResult(ScoreBasedRuleWrapper):
         self.cowinners_ = self._init_score_based()
 
 
-# ---------------------------------------------------------------------------
-# Factory
-# ---------------------------------------------------------------------------
-
-
 def _build_veto():
     """Return a :data:`~vote_simulation.models.rules.registry.RuleBuilder` for Veto."""
 
@@ -49,38 +44,5 @@ def _build_veto():
 
     return builder
 
-
-# ---------------------------------------------------------------------------
-# Rule registrations
-# ---------------------------------------------------------------------------
-
 register_rule("VETO", _build_veto())
-register_rule("APLUS", _build_veto())  # alias
-
-if __name__ == "__main__":
-    # Case 1 — clear winner (A vetoed fewest times)
-    result1 = VetoResult(
-        _ensure_profile(
-            [[2, 1, 0], [2, 0, 1], [2, 1, 0]],
-            candidates={"A", "B", "C"},
-        )
-    )
-    print(f"Case 1 — clear winner:   scores_: {result1._inner.scores_}   cowinners_: {result1.cowinners_}")
-
-    # Case 2 — 3-way tie (each voter vetoes a different candidate)
-    result2 = VetoResult(
-        _ensure_profile(
-            [[2, 1, 0], [0, 2, 1], [1, 0, 2]],
-            candidates={"A", "B", "C"},
-        )
-    )
-    print(f"Case 2 — 3-way tie:      scores_: {result2._inner.scores_}   cowinners_: {result2.cowinners_}")
-
-    # Case 3 — 2-way tie (A and B each vetoed once, C vetoed once)
-    result3 = VetoResult(
-        _ensure_profile(
-            [[2, 1, 0], [1, 2, 0], [2, 1, 0], [1, 2, 0]],
-            candidates={"A", "B", "C"},
-        )
-    )
-    print(f"Case 3 — 2-way tie:      scores_: {result3._inner.scores_}   cowinners_: {result3.cowinners_}")
+register_rule("APLU", _build_veto())  # alias

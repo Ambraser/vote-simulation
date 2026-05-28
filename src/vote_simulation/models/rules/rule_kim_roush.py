@@ -1,4 +1,4 @@
-"""Kim-Roush method wrapper with semantically correct co-winner detection.
+"""Kim-Roush method wrapper.
 
 Kim-Roush eliminates all candidates with a Veto score strictly below average
 simultaneously each round.  The process stops when all remaining candidates
@@ -8,10 +8,7 @@ have the same Veto score.
 Eliminated candidates carry ``numpy.inf``.
 
 Co-winners are all candidates that survive to the final round, i.e. all ``c``
-with a finite score in ``scores_[-1, :]``.  This matches the rule's stated
-tie-break: "when all remaining candidates have the same Veto score, the
-candidate with lowest index is declared the winner" — with co-winners being
-all such equally-scored survivors.
+with a finite score in ``scores_[-1, :]``. 
 """
 
 from __future__ import annotations
@@ -42,11 +39,6 @@ class KimRoushResult(EliminationBasedRuleWrapper):
         self.cowinners_ = self._init_elimination_based()
 
 
-# ---------------------------------------------------------------------------
-# Factory
-# ---------------------------------------------------------------------------
-
-
 def _build_kim_roush():
     """Return a :data:`~vote_simulation.models.rules.registry.RuleBuilder` for Kim-Roush."""
 
@@ -56,43 +48,4 @@ def _build_kim_roush():
 
     return builder
 
-
-# ---------------------------------------------------------------------------
-# Rule registrations
-# ---------------------------------------------------------------------------
-
 register_rule("KIMR", _build_kim_roush())
-
-if __name__ == "__main__":
-    # Case 1 — clear winner: A receives fewest vetos every round
-    result1 = KimRoushResult(
-        _ensure_profile(
-            [[2, 1, 0], [2, 0, 1], [2, 1, 0]],
-            {"A", "B", "C"},
-        )
-    )
-    print("Case 1 — clear winner:")
-    print("  scores_:", result1.scores_)
-    print("  cowinners_:", result1.cowinners_)
-
-    # Case 2 — 3-way tie from round 0: each voter vetos a different candidate
-    result2 = KimRoushResult(
-        _ensure_profile(
-            [[2, 1, 0], [0, 2, 1], [1, 0, 2]],
-            {"A", "B", "C"},
-        )
-    )
-    print("Case 2 — 3-way tie:")
-    print("  scores_:", result2.scores_)
-    print("  cowinners_:", result2.cowinners_)
-
-    # Case 3 — C eliminated first, A and B survive tied
-    result3 = KimRoushResult(
-        _ensure_profile(
-            [[2, 1, 0], [2, 1, 0], [1, 2, 0], [1, 2, 0]],
-            {"A", "B", "C"},
-        )
-    )
-    print("Case 3 — 2-way tie after elimination:")
-    print("  scores_:", result3.scores_)
-    print("  cowinners_:", result3.cowinners_)

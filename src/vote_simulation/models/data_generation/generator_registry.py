@@ -116,18 +116,6 @@ def make_generator_builder(
     return _builder
 
 
-def normalize_between_0_and_1(profile: Profile) -> Profile:
-    """Return a new Profile with utilities normalized to [0, 1]."""
-    ut = profile.preferences_ut
-    min_ut = np.min(ut)
-    max_ut = np.max(ut)
-    if max_ut > min_ut:
-        normalized_ut = (ut - min_ut) / (max_ut - min_ut)
-    else:
-        normalized_ut = np.zeros_like(ut)
-    return Profile(preferences_ut=normalized_ut, labels_candidates=profile.labels_candidates)
-
-
 # Seed helper
 
 
@@ -375,17 +363,3 @@ def _build_vmf_hypersphere(
 
 
 register_generator("VMF_HS", _build_vmf_hypersphere)
-
-
-if __name__ == "__main__":
-    # Quick test of the registry
-    code = "IANC"
-    n_voters = 100
-    n_candidates = 9
-
-    builder = get_generator_builder(code)
-    profile = builder(n_voters, n_candidates, seed=123)
-    print(f"Generated profile with code '{code}':")
-    print(f"Candidate labels: {profile.labels_candidates}")
-    print(f"Utility matrix shape: {profile.preferences_ut.shape}")
-    profile.plot3()

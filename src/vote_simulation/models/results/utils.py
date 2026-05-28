@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import os
-from builtins import max as builtins_max
-from builtins import min as builtins_min
 from typing import Any, NamedTuple
 
 import numpy as np
@@ -29,9 +27,9 @@ def _plot_heatmap(
     import matplotlib.pyplot as plt
 
     rule_count = len(labels)
-    longest_label = builtins_max((len(lbl) for lbl in labels), default=1)
-    figure_size = builtins_max(6.0, 0.45 * rule_count + 0.18 * longest_label)
-    annotation_fontsize = builtins_max(4, builtins_min(10, int(240 / builtins_max(rule_count, 1))))
+    longest_label = max((len(lbl) for lbl in labels), default=1)
+    figure_size = max(6.0, 0.45 * rule_count + 0.18 * longest_label)
+    annotation_fontsize = max(4, min(10, int(240 / max(rule_count, 1))))
 
     if ax is None:
         _, ax = plt.subplots(figsize=(figure_size, figure_size), constrained_layout=True)
@@ -41,7 +39,6 @@ def _plot_heatmap(
     ax.set_xticks(range(rule_count), labels=labels)
     ax.set_yticks(range(rule_count), labels=labels)
     plt.setp(ax.get_xticklabels(), rotation=45, ha="center")
-    # plt.setp(ax.get_yticklabels(), fontsize=tick_fontsize)
     ax.set_title(title)
     ax.set_xlabel("Rules")
     ax.set_ylabel("Rules")
