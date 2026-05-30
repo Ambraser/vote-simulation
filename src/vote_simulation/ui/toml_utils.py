@@ -184,12 +184,12 @@ def _parse_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
 # ---------------------------------------------------------------------------
 
 DEFAULT_STATE: dict[str, Any] = {
-    "output_base_path": "../data/",
-    "seed": 42,
+    "output_base_path": "",
+    "seed": None,
     "generative_models": [],
     "rule_codes": [],
-    "candidates": [3, 14],
-    "voters": [11, 101, 1001],
+    "candidates": [],
+    "voters": [],
     "iterations": 1000,
     "generator_params": {},
     "input_folder_path": None,
@@ -205,15 +205,18 @@ def state_to_toml(state: dict[str, Any]) -> str:
 
     Le document produit est directement lisible par ``load_simulation_config()``.
     """
-    doc: dict[str, Any] = {
-        "simulation": {
-            "output_base_path": state.get("output_base_path", "../data/"),
-            "seed": int(state.get("seed", 42)),
-            "generative_models": list(state.get("generative_models", [])),
-            "rule_codes": list(state.get("rule_codes", [])),
-            "iterations": int(state.get("iterations", 1000)),
-        }
+    sim: dict[str, Any] = {
+        "generative_models": list(state.get("generative_models", [])),
+        "rule_codes": list(state.get("rule_codes", [])),
+        "iterations": int(state.get("iterations", 1000)),
     }
+    output_path = state.get("output_base_path") or ""
+    if output_path:
+        sim["output_base_path"] = output_path
+    seed = state.get("seed")
+    if seed is not None:
+        sim["seed"] = int(seed)
+    doc: dict[str, Any] = {"simulation": sim}
 
     candidates = state.get("candidates")
     if candidates:

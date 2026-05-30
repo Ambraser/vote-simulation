@@ -16,20 +16,22 @@ Lancement :
 from __future__ import annotations
 
 import copy
+import hashlib
 import multiprocessing as mp
 import queue
 import threading
 import time
+from pathlib import Path
 from typing import Any
 
 import streamlit as st
 from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ctx
 
 from vote_simulation.ui.tab_config import render_tab_config
-from vote_simulation.ui.tab_generation import render_tab_generation
+from vote_simulation.ui.tab_generation import _parse_int_list, render_tab_generation
 from vote_simulation.ui.tab_results import render_tab_results
-from vote_simulation.ui.tab_simulation import render_tab_simulation
-from vote_simulation.ui.toml_utils import DEFAULT_STATE, write_temp_toml
+from vote_simulation.ui.tab_simulation import _FAMILIES, render_tab_simulation
+from vote_simulation.ui.toml_utils import DEFAULT_STATE, state_to_toml, write_temp_toml
 
 # ---------------------------------------------------------------------------
 # Configuration de la page Streamlit
@@ -331,7 +333,11 @@ def _render_global_bar() -> None:
             st.session_state["full_run_progress"] = (0, _pre_total)
             st.session_state["global_status"] = "Run complet en cours…"
 
-            tmp_path = write_temp_toml(cfg, base_dir=st.session_state.get("cfg_base_dir"))
+            # Réutiliser le fichier TOML temp maintenu à jour par _refresh_active_toml().
+            # En cas d'absence (première exécution sans modification préalable), en créer un.
+            tmp_path = st.session_state.get("_active_tmp_toml_path") or write_temp_toml(
+                cfg, base_dir=st.session_state.get("cfg_base_dir")
+            )
 
             _reload = st.session_state.get("global_full_reload", False)
             t = threading.Thread(
@@ -456,8 +462,127 @@ def _render_full_run_feedback() -> None:
 # ---------------------------------------------------------------------------
 
 
+def _sync_cfg_from_widgets() -> None:
+    """Pré-applique les valeurs courantes des widgets à cfg avant le rendu de tab_config.
+
+    Streamlit exécute les onglets dans l'ordre de déclaration.  tab_config (onglet 1)
+    calcule l'aperçu TOML AVANT que tab_generation et tab_simulation n'aient mis à jour
+    cfg via leurs propres widgets.  Cette fonction lit les valeurs déjà stockées dans
+    session_state (disponibles dès le début du script sur chaque rerun) et les applique
+    à cfg, de sorte que l'aperçu reflète toujours l'état courant des widgets.
+    """
+    cfg: dict | None = st.session_state.get("cfg")
+    if cfg is None:
+        return
+
+    # ── Onglet Données ────────────────────────────────────────────────────
+    # output_base_path (tab_config widget, mais appliqué ici aussi pour cohérence)
+    if "cfg_output_base_path" in st.session_state:
+        cfg["output_base_path"] = st.session_state["cfg_output_base_path"]
+
+    # Seed (number_input → int ou None)
+    if "cfg_seed" in st.session_state:
+        val = st.session_state["cfg_seed"]
+        cfg["seed"] = int(val) if val is not None else None
+
+    # Modèles génératifs
+    if "gen_models_select" in st.session_state:
+        cfg["generative_models"] = list(st.session_state["gen_models_select"])
+
+    # Voters / Candidates (text_input → parsing)
+    if "gen_voters_input" in st.session_state:
+        parsed = _parse_int_list(st.session_state["gen_voters_input"])
+        if parsed:
+            cfg["voters"] = parsed
+
+    if "gen_candidates_input" in st.session_state:
+        parsed = _parse_int_list(st.session_state["gen_candidates_input"])
+        if parsed:
+            cfg["candidates"] = parsed
+
+    # Iterations (slider)
+    if "gen_iterations_slider" in st.session_state:
+        val = st.session_state["gen_iterations_slider"]
+        if isinstance(val, (int, float)) and int(val) > 0:
+            cfg["iterations"] = int(val)
+
+    # ── Onglet Simulation — Règles de vote ───────────────────────────────
+    # Agréger toutes les familles présentes dans session_state.
+    # On ne touche à rule_codes que si au moins une clé de famille existe,
+    # pour éviter d'écraser une config chargée via TOML avant le premier rendu.
+    rule_keys = [f"rules_family_{fid}" for _, fid in _FAMILIES]
+    if any(k in st.session_state for k in rule_keys):
+        aggregated: list[str] = []
+        for key in rule_keys:
+            aggregated.extend(st.session_state.get(key, []))
+        cfg["rule_codes"] = aggregated
+
+
+def _refresh_active_toml() -> None:
+    """Maintient un fichier TOML temp à jour reflétant l'état courant de cfg.
+
+    Appelé à chaque rerun, après _sync_cfg_from_widgets().  Calcule un hash du
+    contenu TOML sérialisé et ne réécrit sur disque que si cfg a changé depuis
+    la dernière écriture (évite des I/O inutiles).
+
+    Met à jour :
+    - ``session_state["_active_tmp_toml_path"]`` : chemin absolu du fichier temp
+    - ``session_state["toml_active_path"]`` : libellé affiché dans la barre globale
+      (ex. "simulation.toml", "simulation.toml (modifié)", "Interface (non sauvegardé)")
+    """
+    cfg: dict | None = st.session_state.get("cfg")
+    if cfg is None:
+        return
+
+    # Hash du contenu TOML sérialisé — seule la sérialisation finale compte.
+    toml_str = state_to_toml(cfg)
+    cfg_hash = hashlib.md5(toml_str.encode()).hexdigest()  # noqa: S324 — non-cryptographic
+
+    if st.session_state.get("_active_tmp_cfg_hash") == cfg_hash:
+        # Rien n'a changé : le fichier temp existant est encore valide.
+        return
+
+    # Écriture du nouveau fichier temp (resolve output_base_path depuis cfg_base_dir).
+    tmp_path = write_temp_toml(cfg, base_dir=st.session_state.get("cfg_base_dir"))
+
+    # Nettoyage de l'ancien fichier temp pour éviter l'accumulation dans /tmp/.
+    old_path: str | None = st.session_state.get("_active_tmp_toml_path")
+    if old_path and old_path != tmp_path:
+        try:
+            Path(old_path).unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    st.session_state["_active_tmp_toml_path"] = tmp_path
+    st.session_state["_active_tmp_cfg_hash"] = cfg_hash
+
+    # ── Libellé affiché dans la barre globale ────────────────────────────
+    original_name: str | None = st.session_state.get("_original_toml_name")
+    original_hash: str | None = st.session_state.get("_original_cfg_hash")
+
+    if original_name:
+        # Un fichier a été chargé : signaler si la config a été modifiée depuis.
+        if cfg_hash == original_hash:
+            label: str | None = original_name
+        else:
+            label = f"{original_name} (modifié)"
+    else:
+        # Pas de fichier chargé : config construite entièrement depuis l'interface.
+        has_content = bool(cfg.get("generative_models") or cfg.get("rule_codes"))
+        label = "Interface (non sauvegardé)" if has_content else None
+
+    st.session_state["toml_active_path"] = label
+
+
 def main() -> None:
     _init_session()
+
+    # Pré-synchroniser cfg depuis les widgets pour que l'aperçu TOML de tab_config
+    # reflète immédiatement chaque modification dans les onglets Données et Simulation.
+    _sync_cfg_from_widgets()
+
+    # Maintenir le fichier TOML temp à jour et le libellé "TOML actif".
+    _refresh_active_toml()
 
     # En-tête
     st.title("vote_simulation")

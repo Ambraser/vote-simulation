@@ -18,6 +18,11 @@ from vote_simulation.ui.toml_utils import (
 )
 
 
+def _cfg_hash(state: dict) -> str:
+    """Retourne un hash MD5 du TOML sérialisé depuis *state*."""
+    return hashlib.md5(state_to_toml(state).encode()).hexdigest()  # noqa: S324
+
+
 def _clear_cfg_widget_keys() -> None:
     """Synchronise tous les widgets pilotés par cfg avec les valeurs du cfg courant.
 
@@ -33,7 +38,9 @@ def _clear_cfg_widget_keys() -> None:
 
     # ---- Widgets simples (text_input, number_input, slider) ----
     # Écrire directement la valeur cfg dans session_state → priorité absolue.
-    st.session_state["cfg_output_base_path"] = cfg.get("output_base_path", "../data/")
+    st.session_state["cfg_output_base_path"] = cfg.get("output_base_path") or ""
+    seed_val = cfg.get("seed")
+    st.session_state["cfg_seed"] = int(seed_val) if seed_val is not None else None
     st.session_state["gen_voters_input"] = ", ".join(str(v) for v in cfg.get("voters", []))
     st.session_state["gen_candidates_input"] = ", ".join(str(c) for c in cfg.get("candidates", []))
     st.session_state["gen_iterations_slider"] = int(cfg.get("iterations", 1000))
@@ -97,6 +104,13 @@ def render_tab_config() -> None:
                         st.session_state["_last_upload_id"] = upload_id
                         # Fichier uploadé : pas de chemin sur disque → pas de base_dir
                         st.session_state["cfg_base_dir"] = None
+                        # Mémoriser le nom et le hash d'origine pour détecter les
+                        # modifications ultérieures et afficher "(modifié)" dans la barre.
+                        st.session_state["_original_toml_name"] = uploaded.name
+                        st.session_state["_original_cfg_hash"] = _cfg_hash(new_state)
+                        # Invalider le cache temp pour forcer une réécriture immédiate.
+                        st.session_state.pop("_active_tmp_cfg_hash", None)
+                        st.session_state.pop("_active_tmp_toml_path", None)
                         _clear_cfg_widget_keys()
                         for w in warnings:
                             st.warning(w)
@@ -125,6 +139,9 @@ def render_tab_config() -> None:
             st.session_state["toml_active_path"] = None
             st.session_state["cfg_base_dir"] = None
             st.session_state.pop("_last_upload_id", None)  # autorise un re-upload
+            # Effacer toutes les traces de l'ancienne config chargée/temp.
+            for _k in ("_original_toml_name", "_original_cfg_hash", "_active_tmp_cfg_hash", "_active_tmp_toml_path"):
+                st.session_state.pop(_k, None)
             _clear_cfg_widget_keys()
             st.rerun()
 
@@ -141,12 +158,56 @@ def render_tab_config() -> None:
     # -----------------------------------------------------------------------
     st.subheader("Paramètres de simulation")
 
-    new_path = st.text_input(
-        "Dossier de sortie (output_base_path)",
-        key="cfg_output_base_path",
-        help="Répertoire racine pour gen/ et sim_result/ (relatif au dossier de config).",
-    )
+    # Appliquer le résultat du sélecteur de dossier AVANT l'instanciation du widget
+    # (on ne peut pas écrire dans session_state[key] après qu'un widget avec ce key
+    # a déjà été rendu dans ce même rerun).
+    if "_folder_picker_result" in st.session_state:
+        st.session_state["cfg_output_base_path"] = st.session_state.pop("_folder_picker_result")
+
+    col_path, col_browse, col_seed = st.columns([5, 1, 3])
+
+    with col_path:
+        new_path = st.text_input(
+            "Dossier de sortie (output_base_path)",
+            key="cfg_output_base_path",
+            placeholder="Ex : ../data/ ou /home/user/results",
+            help="Répertoire racine pour gen/ et sim_result/. Laissez vide pour utiliser le répertoire courant.",
+        )
     cfg["output_base_path"] = new_path
+
+    with col_browse:
+        # Espace vertical pour aligner le bouton avec le text_input
+        st.markdown("<div style='margin-top:28px'></div>", unsafe_allow_html=True)
+        if st.button("📁", help="Ouvrir un sélecteur de dossier", key="cfg_browse_btn"):
+            try:
+                import tkinter as tk
+                from tkinter import filedialog
+
+                root = tk.Tk()
+                root.withdraw()
+                root.wm_attributes("-topmost", 1)
+                folder = filedialog.askdirectory(title="Choisir le dossier de sortie")
+                root.destroy()
+                if folder:
+                    # Stocker dans une clé temporaire — sera appliquée au prochain rerun
+                    # AVANT l'instanciation du widget cfg_output_base_path.
+                    st.session_state["_folder_picker_result"] = folder
+                    st.rerun()
+            except Exception as exc:
+                st.error(f"Sélecteur de dossier indisponible : {exc}")
+
+    with col_seed:
+        new_seed = st.number_input(
+            "Seed aléatoire",
+            min_value=0,
+            max_value=2**31 - 1,
+            value=None,
+            step=1,
+            key="cfg_seed",
+            placeholder="Aléatoire si vide",
+            help="Graine pour la reproductibilité. Laissez vide pour une seed aléatoire.",
+        )
+    cfg["seed"] = int(new_seed) if new_seed is not None else None
 
     st.divider()
 
