@@ -80,4 +80,5 @@ def _build_young():
 
     return builder
 
+
 register_rule("YOUN", _build_young())

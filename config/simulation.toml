@@ -14,7 +14,7 @@ generative_models = ["VMF_HC"]
 # Note: PV-* codes (PV-IR, PV-BALD, etc.) are NOT registered in the rule registry
 # and would be silently skipped. Removed to avoid log spam and inflated results.
 rule_codes = [
-    "PLU1", "HARE", "BORD", "COOM", "BALD", "COPE", "SCHU", "MMAX"
+    "PLU1", "HARE", "BORD", "COOM", "BALD", "COPE", "SCHU",
 ]
 
 # *** UNCOMMENT BELOW FOR OTHER SETS ***
@@ -25,7 +25,7 @@ rule_codes = [
 #     "AP_K6", "AP_K7", "AP_K8", "AP_K9", "AP_T", "AP_T05", "AP_T06", "AP_T07",
 #     "AP_T08", "AP_T09", "BALD", "BLAC", "BORD", "BUCK_I", "BUCK_R", "CAIR",
 #     "COOM", "COPE", "CSUM", "CVIR", "DODG_C", "DODG_S", "EXHB", "HARE", "ICRV",
-#     "IRV", "IRVA", "IRVD", "KEME", "KIMR", "L4VD", "MJ", "MMAX", "NANS", "PLU1",
+#     "IRV", "IRVA", "IRVD", "KEME", "KIMR", "L4VD", "MJ", "NANS", "PLU1",
 #     "PLU2", "RPAR", "RV", "SCHU", "SIRV", "SLAT", "SPCY", "STAR", "TIDE", "VETO",
 #     "WOOD", "YOUN"
 # ]

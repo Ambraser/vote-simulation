@@ -70,7 +70,6 @@ class ICRVResult(SvvampRuleWrapper):
         return self._resolve_cowinners(np.flatnonzero(row == best))
 
 
-
 def _build_icrv(*, cm_option: str = "fast"):
     def builder(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> RuleResult:
         profile = _ensure_profile(profile_or_ballots, candidates)

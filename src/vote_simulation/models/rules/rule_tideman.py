@@ -57,7 +57,6 @@ class TidemanResult(SvvampRuleWrapper):
         return self._resolve_cowinners(survivors_last)
 
 
-
 def _build_tideman():
     """Return a :data:`~vote_simulation.models.rules.registry.RuleBuilder` for Tideman."""
 

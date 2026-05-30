@@ -71,4 +71,5 @@ def _build_irv(*, cm_option: str = "fast"):
 
     return builder
 
+
 register_rule("HARE", _build_irv(cm_option="fast"))

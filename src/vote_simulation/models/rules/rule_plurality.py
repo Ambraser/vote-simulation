@@ -31,6 +31,7 @@ class PluralityResult(ScoreBasedRuleWrapper):
         self._inner = RulePlurality()(profile)
         self.cowinners_ = self._init_score_based()
 
+
 def _build_plurality():
     """Return a :data:`~vote_simulation.models.rules.registry.RuleBuilder` for Plurality."""
 
@@ -39,5 +40,6 @@ def _build_plurality():
         return PluralityResult(profile)
 
     return builder
+
 
 register_rule("PLU1", _build_plurality())

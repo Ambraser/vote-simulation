@@ -51,4 +51,5 @@ def _build_range_voting():
 
     return builder
 
+
 register_rule("RV", _build_range_voting())

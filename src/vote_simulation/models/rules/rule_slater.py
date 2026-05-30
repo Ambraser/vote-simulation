@@ -11,7 +11,7 @@ than the matrix of duels, unlike Kemeny).
     The Slater method is NP-hard.  When several orderings are equally optimal,
     svvamp returns the **first lexicographic one**, so only a single winner is
     reported.  Detecting all tied co-winners would require enumerating all
-    optimal Slater orders — not feasible in general. 
+    optimal Slater orders — not feasible in general.
 """
 
 from __future__ import annotations

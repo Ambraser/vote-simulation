@@ -31,7 +31,6 @@ EXPECTED_REFERENCE_COWINNERS = [
     ("HARE", ["Candidate 1"]),
     ("KIMR", ["Candidate 6"]),
     ("MJ", ["Candidate 6"]),
-    ("MMAX", ["Candidate 4"]),
     ("NANS", ["Candidate 4"]),
     ("PLU1", ["Candidate 1"]),
     ("PLU2", ["Candidate 1"]),

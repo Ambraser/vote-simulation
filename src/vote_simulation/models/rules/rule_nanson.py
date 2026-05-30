@@ -37,6 +37,7 @@ class NansonResult(EliminationBasedRuleWrapper):
         self.scores_ = self._inner.scores_
         self.cowinners_ = self._init_elimination_based()
 
+
 def _build_nanson():
     """Return a :data:`~vote_simulation.models.rules.registry.RuleBuilder` for Nanson."""
 
@@ -45,5 +46,6 @@ def _build_nanson():
         return NansonResult(profile)
 
     return builder
+
 
 register_rule("NANS", _build_nanson())

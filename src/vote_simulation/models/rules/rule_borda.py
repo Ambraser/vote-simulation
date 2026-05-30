@@ -64,4 +64,5 @@ def _build_borda(*, cm_option: str = "fast"):
 
     return builder
 
+
 register_rule("BORD", _build_borda(cm_option="fast"))

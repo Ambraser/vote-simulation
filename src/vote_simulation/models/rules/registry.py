@@ -258,69 +258,14 @@ def get_rule_builder(code: str) -> RuleBuilder:
         raise ValueError(f"Unknown rule code: '{code}'. Available codes: {available}") from error
 
 
-# PLU1 is registered in rule_plurality.py with proper co-winner semantics.
-# PLU2 is registered in rule_two_round.py with proper co-winner semantics.
-
-
-# BLAC is registered in rule_black.py with proper co-winner semantics.
-# BORD is registered in rule_borda.py with proper co-winner semantics.
-
-
-# register_rule("COND", _build_with_rule(lambda profile: RuleCondorcet()(profile)))
-
-
-# COOM is registered in rule_coombs.py with proper co-winner semantics.
-
-
-# def _build_l4vd(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> RuleResult:
-#    """L4VD rule : code L4VD"""
-#    raise NotImplementedError("L4VD rule is not implemented yet")
-
-
-# register_rule("L4VD", _build_l4vd)  # TODO: implement L4VD rule
-
-
-# RV is registered in rule_range_voting.py with proper co-winner semantics.
-
-
-# COPE is registered in rule_copeland.py with proper co-winner semantics.
-
-
-# MJ and MJ_RESCALE are registered in rule_majority_judgment.py with proper co-winner semantics.
-
-
-# STAR is registered in rule_star.py with proper co-winner semantics.
-
-
 # BUCK_R is registered in rule_bucklin.py with proper co-winner semantics.
 register_rule("DODG_S", _build_with_rule(lambda profile: RuleDodgson()(profile)))
-# NANS is registered in rule_nanson.py with proper co-winner semantics.
-# AP_T* rules are registered in rule_approval.py with proper co-winner semantics.
-# BALD is registered in rule_baldwin.py with proper co-winner semantics.
-# BUCK_I is registered in rule_iterated_bucklin.py with proper co-winner semantics.
-# HARE and IRV are registered in rule_irv.py with proper co-winner semantics.
-# MMAX is registered in rule_maximin.py with proper co-winner semantics.
-# SCHU is registered in rule_schulze.py with proper co-winner semantics.
-# AP_K and AP_K2..AP_K12 are registered in rule_k_approval.py with proper co-winner semantics.
-# STAR is registered in rule_star.py with proper co-winner semantics.
 register_rule("DODG_C", _build_with_rule(lambda profile: RuleDodgson()(profile)))
 register_rule("CSUM", _build_with_rule(lambda profile: RuleCondorcetSumDefeats()(profile)))
 register_rule("IRVD", _build_with_rule(lambda profile: RuleIRVDuels()(profile)))
-# KEME is registered in rule_kemeny.py with proper co-winner semantics.
-# KIMR is registered in rule_kim_roush.py with proper co-winner semantics.
 register_rule("RPAR", _build_with_rule(lambda profile: RuleRankedPairs()(profile)))
-# SLAT is registered in rule_slater.py with proper co-winner semantics.
-# SPCY is registered in rule_split_cycle.py with proper co-winner semantics.
-# VETO is registered in rule_veto.py with proper co-winner semantics.
-# YOUN is registered in rule_young.py with proper co-winner semantics.
 register_rule("EXHB", _build_with_rule(lambda profile: RuleExhaustiveBallot()(profile)))
 register_rule("CAIR", _build_with_rule(lambda profile: RuleCondorcetAbsIRV()(profile)))
 register_rule("CVIR", _build_with_rule(lambda profile: RuleCondorcetVtbIRV()(profile)))
-# ICRV is registered in rule_icrv.py with proper co-winner semantics.
 register_rule("IRVA", _build_with_rule(lambda profile: RuleIRVAverage()(profile)))
 register_rule("SIRV", _build_with_rule(lambda profile: RuleSmithIRV()(profile)))
-# TIDE is registered in rule_tideman.py with proper co-winner semantics.
-# WOOD is registered in rule_woodall.py with proper co-winner semantics.
-
-
-# AP_K* and AP_T* rules are registered in their dedicated rule modules.

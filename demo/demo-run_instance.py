@@ -14,7 +14,6 @@ if __name__ == "__main__":
         "BLAC",
         "SCHU",
         "COPE",
-        "MMAX",
         "NANS",
         "COOM",
         "HARE",

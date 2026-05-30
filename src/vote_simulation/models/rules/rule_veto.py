@@ -44,5 +44,6 @@ def _build_veto():
 
     return builder
 
+
 register_rule("VETO", _build_veto())
 register_rule("APLU", _build_veto())  # alias

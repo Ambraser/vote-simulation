@@ -43,6 +43,7 @@ class SchulzeResult(SvvampRuleWrapper):
         indices = np.where(potential)[0]
         return self._resolve_cowinners(indices)
 
+
 def _build_schulze():
     """Return a :data:`~vote_simulation.models.rules.registry.RuleBuilder` for Schulze."""
 
@@ -51,5 +52,6 @@ def _build_schulze():
         return SchulzeResult(profile)
 
     return builder
+
 
 register_rule("SCHU", _build_schulze())

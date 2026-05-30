@@ -64,6 +64,7 @@ class BaldwinResult(EliminationBasedRuleWrapper):
         self.candidates_worst_to_best_ = self._inner.candidates_by_scores_best_to_worst_
         self.cowinners_ = self._init_elimination_based()
 
+
 def _build_baldwin(
     *,
     cm_option: str = "exact",

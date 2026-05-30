@@ -67,7 +67,6 @@ class STARResult(SvvampRuleWrapper):
         return self._resolve_cowinners(np.where(cowin_mask)[0])
 
 
-
 def _build_star():
     """Return a :data:`~vote_simulation.models.rules.registry.RuleBuilder` for STAR."""
 
@@ -76,5 +75,6 @@ def _build_star():
         return STARResult(profile)
 
     return builder
+
 
 register_rule("STAR", _build_star())

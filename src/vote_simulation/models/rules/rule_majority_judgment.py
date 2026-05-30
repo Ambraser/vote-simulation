@@ -80,7 +80,6 @@ class MajorityJudgmentResult(SvvampRuleWrapper):
         return self._labels_for(np.flatnonzero(winners_mask))
 
 
-
 def _build_majority_judgment(
     *,
     min_grade: float | None = None,
@@ -99,5 +98,6 @@ def _build_majority_judgment(
         )
 
     return builder
+
 
 register_rule("MJ", _build_majority_judgment())

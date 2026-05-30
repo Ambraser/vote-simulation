@@ -8,7 +8,7 @@ have the same Veto score.
 Eliminated candidates carry ``numpy.inf``.
 
 Co-winners are all candidates that survive to the final round, i.e. all ``c``
-with a finite score in ``scores_[-1, :]``. 
+with a finite score in ``scores_[-1, :]``.
 """
 
 from __future__ import annotations
@@ -47,5 +47,6 @@ def _build_kim_roush():
         return KimRoushResult(profile)
 
     return builder
+
 
 register_rule("KIMR", _build_kim_roush())

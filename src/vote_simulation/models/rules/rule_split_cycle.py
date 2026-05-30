@@ -43,4 +43,5 @@ def _build_split_cycle():
 
     return builder
 
+
 register_rule("SPCY", _build_split_cycle())

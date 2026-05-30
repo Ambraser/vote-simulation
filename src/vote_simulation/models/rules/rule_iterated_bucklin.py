@@ -87,4 +87,5 @@ def _build_iterated_bucklin(
 
     return builder
 
+
 register_rule("BUCK_I", _build_iterated_bucklin())
