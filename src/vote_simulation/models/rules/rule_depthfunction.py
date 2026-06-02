@@ -2,7 +2,7 @@
 
 Implements the metric-based ranking depth from:
 
-    Goibert, Clémençon, Irurozki, Mozharovskyi (AISTATS 2022).
+    Goibert, Clémençon, Irurozki, Mozharovskyi (2022).
     "Statistical Depth Functions for Ranking Distributions: Definitions,
      Statistical Learning and Applications."
 
@@ -21,9 +21,9 @@ where σ(i) is the rank position of candidate i (0 = most preferred).
 
 By **Proposition 5** of the paper (Kendall-tau case), the ranking depth is:
 
-    D_P(σ) = C(n,2) − L_P(σ)
+    D_P(σ) = C(n,2) - L_P(σ)
 
-where C(n,2) = n(n−1)/2 is the maximum possible Kendall-tau distance.
+where C(n,2) = n(n-1)/2 is the maximum possible Kendall-tau distance.
 
 Winner
 ------

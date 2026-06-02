@@ -11,6 +11,8 @@ Ce script illustre le fonctionnement de la règle DEPF sur plusieurs profils :
 
 from __future__ import annotations
 
+from typing import cast
+
 import numpy as np
 import svvamp
 
@@ -29,7 +31,7 @@ def show_result(result: DepthFunctionResult, label: str = "") -> None:
         print(f"\n{label}")
         print("-" * len(label))
     print(f"  Co-gagnant(s) : {result.cowinners_}")
-    print(f"  Scores de profondeur :")
+    print("  Scores de profondeur :")
     for c, s in enumerate(result.scores_):
         marker = " <-- MAX" if c in result.cowinner_indices_ else ""
         print(f"    Candidat {c} : {s:.4f}{marker}")
@@ -45,16 +47,18 @@ print(SEP)
 print("1. PROFIL AVEC VAINQUEUR DE CONDORCET")
 print(SEP)
 # Candidat 0 est préféré par tous à 1, et tous préfèrent 1 à 2.
-prefs_condorcet = np.array([
-    [0, 1, 2],
-    [0, 1, 2],
-    [0, 2, 1],
-    [0, 1, 2],
-])
+prefs_condorcet = np.array(
+    [
+        [0, 1, 2],
+        [0, 1, 2],
+        [0, 2, 1],
+        [0, 1, 2],
+    ]
+)
 profile_c = svvamp.Profile(preferences_rk=prefs_condorcet)
-result_c = get_rule_builder("DEPF")(profile_c)
+result_c = cast(DepthFunctionResult, get_rule_builder("DEPF")(profile_c, None))
 show_result(result_c, "Votes : 0>1>2, 0>1>2, 0>2>1, 0>1>2")
-print(f"  -> Vainqueur de Condorcet attendu : candidat 0")
+print("  -> Vainqueur de Condorcet attendu : candidat 0")
 
 # ---------------------------------------------------------------------------
 # 2. Paradoxe de Condorcet (cycle 0>1>2>0)
@@ -63,15 +67,17 @@ print(f"\n{SEP}")
 print("2. PARADOXE DE CONDORCET (cycle)")
 print(SEP)
 # 0>1>2, 1>2>0, 2>0>1  → pas de vainqueur de Condorcet
-prefs_cycle = np.array([
-    [0, 1, 2],
-    [1, 2, 0],
-    [2, 0, 1],
-])
+prefs_cycle = np.array(
+    [
+        [0, 1, 2],
+        [1, 2, 0],
+        [2, 0, 1],
+    ]
+)
 profile_cy = svvamp.Profile(preferences_rk=prefs_cycle)
-result_cy = get_rule_builder("DEPF")(profile_cy)
+result_cy = cast(DepthFunctionResult, get_rule_builder("DEPF")(profile_cy, None))
 show_result(result_cy, "Votes : 0>1>2 | 1>2>0 | 2>0>1")
-print(f"  -> Distribution uniforme : scores tous égaux attendus")
+print("  -> Distribution uniforme : scores tous égaux attendus")
 
 # ---------------------------------------------------------------------------
 # 3. Co-gagnants (égalité parfaite)
@@ -80,14 +86,16 @@ print(f"\n{SEP}")
 print("3. PROFIL AVEC CO-GAGNANTS")
 print(SEP)
 # Symétrie exacte entre 0 et 1
-prefs_tie = np.array([
-    [0, 1, 2],
-    [1, 0, 2],
-    [0, 1, 2],
-    [1, 0, 2],
-])
+prefs_tie = np.array(
+    [
+        [0, 1, 2],
+        [1, 0, 2],
+        [0, 1, 2],
+        [1, 0, 2],
+    ]
+)
 profile_t = svvamp.Profile(preferences_rk=prefs_tie)
-result_t = get_rule_builder("DEPF")(profile_t)
+result_t = cast(DepthFunctionResult, get_rule_builder("DEPF")(profile_t, None))
 show_result(result_t, "Votes : 0>1>2 et 1>0>2 (équilibre parfait)")
 
 # ---------------------------------------------------------------------------
@@ -101,7 +109,7 @@ n_c_large = EXACT_THRESHOLD + 2
 n_v_large = 200
 prefs_large = np.argsort(np.random.rand(n_v_large, n_c_large), axis=1)
 profile_l = svvamp.Profile(preferences_rk=prefs_large)
-result_l = get_rule_builder("DEPF")(profile_l)
+result_l = cast(DepthFunctionResult, get_rule_builder("DEPF")(profile_l, None))
 show_result(result_l, f"{n_v_large} votants, {n_c_large} candidats (approximation greedy)")
 
 # ---------------------------------------------------------------------------
@@ -114,11 +122,11 @@ np.random.seed(42)
 prefs_cmp = np.argsort(np.random.rand(30, 6), axis=1)
 profile_cmp = svvamp.Profile(preferences_rk=prefs_cmp)
 
-result_depf  = get_rule_builder("DEPF")(profile_cmp)
-result_kemeny = get_rule_builder("KEME")(profile_cmp)
-result_borda  = get_rule_builder("BORD")(profile_cmp)
+result_depf = cast(DepthFunctionResult, get_rule_builder("DEPF")(profile_cmp, None))
+result_kemeny = get_rule_builder("KEME")(profile_cmp, None)
+result_borda = get_rule_builder("BORD")(profile_cmp, None)
 
-print(f"  Profil : 30 votants, 6 candidats (aléatoire seed=42)")
+print("  Profil : 30 votants, 6 candidats (aléatoire seed=42)")
 print(f"  DEPF   co-gagnant(s) : {result_depf.cowinners_}")
 print(f"  Kemeny co-gagnant(s) : {result_kemeny.cowinners_}")
 print(f"  Borda  co-gagnant(s) : {result_borda.cowinners_}")
@@ -137,7 +145,7 @@ try:
     from vote_simulation.models.data_generation.data_instance import DataInstance
 
     di = DataInstance.from_generator("IC", 101, 5, seed=7)
-    result_ic = get_rule_builder("DEPF")(di.profile)
+    result_ic = cast(DepthFunctionResult, get_rule_builder("DEPF")(di.profile, None))
     show_result(result_ic, "IC — 101 votants, 5 candidats, seed=7")
 except Exception as exc:
     print(f"  (Erreur : {exc})")

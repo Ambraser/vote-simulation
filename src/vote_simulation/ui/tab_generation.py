@@ -23,8 +23,10 @@ from vote_simulation.ui.toml_utils import QueueWriter, write_temp_toml
 @st.cache_resource(show_spinner=False)
 def _cached_generator_codes() -> list[str]:
     """Liste des codes de modèles génératifs — mise en cache pour la session."""
+    from vote_simulation.models.data_generation.from_r_registry import register_r_generators
     from vote_simulation.models.data_generation.generator_registry import list_generator_codes
 
+    register_r_generators()
     return list_generator_codes()
 
 

@@ -4,7 +4,7 @@ output_base_path = "../data/"
 
 # Data generation models
 # Available: UNI, IC, IANC, EUCLID, GAUSS, LADDER, SPHEROID, PERTURB, UNANIMOUS, UFR, VMF_HC, VMF_HS
-generative_models = ["UNI", "UNANIMOUS","EUCLID_2D"]
+generative_models = ["UNI", "DDD_BETA","DDD_BETA_POLAR"]
 
 
 # Voting methods to execute

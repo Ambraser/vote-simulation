@@ -27,51 +27,97 @@ import streamlit as st
 
 
 def _scan_sim_result(base_path: str) -> dict[str, dict[str, list[int]]]:
-    """Retourne {model: {str(n_v): [n_c, …]}} depuis sim_result/."""
-    root = Path(base_path) / "sim_result"
+    """Retourne {model: {str(n_v): [n_c, …]}} depuis sim_result/ et results/.
+
+    - sim_result/{MODEL}_v{NV}_c{NC}/*.parquet  (legacy per-iteration format)
+    - results/{MODEL}_v{NV}_c{NC}_i*.parquet    (series cache written by simulation_instance)
+    """
     structure: dict[str, dict[str, list[int]]] = {}
-    if not root.is_dir():
-        return structure
-    for subdir in sorted(root.iterdir()):
-        if not subdir.is_dir():
-            continue
-        try:
-            model, rest = subdir.name.split("_v", 1)
-            nv_str, nc_str = rest.split("_c", 1)
+
+    # ── sim_result/ (legacy per-iteration files) ─────────────────────────
+    sim_root = Path(base_path) / "sim_result"
+    if sim_root.is_dir():
+        for subdir in sorted(sim_root.iterdir()):
+            if not subdir.is_dir():
+                continue
+            try:
+                model, rest = subdir.name.split("_v", 1)
+                nv_str, nc_str = rest.split("_c", 1)
+                n_v, n_c = int(nv_str), int(nc_str)
+            except (ValueError, TypeError):
+                continue
+            if not any(subdir.glob("*.parquet")):
+                continue
+            structure.setdefault(model, {}).setdefault(str(n_v), [])
+            if n_c not in structure[model][str(n_v)]:
+                structure[model][str(n_v)].append(n_c)
+
+    # ── results/ (series cache: {MODEL}_v{NV}_c{NC}_i{N}.parquet) ────────
+    res_root = Path(base_path) / "results"
+    if res_root.is_dir():
+        import re
+        _pat = re.compile(r"^([A-Za-z0-9_]+)_v(\d+)_c(\d+)_i\d+\.parquet$")
+        for fpath in sorted(res_root.glob("*.parquet")):
+            m = _pat.match(fpath.name)
+            if not m:
+                continue
+            model, nv_str, nc_str = m.group(1), m.group(2), m.group(3)
             n_v, n_c = int(nv_str), int(nc_str)
-        except (ValueError, TypeError):
-            continue
-        if not any(subdir.glob("*.parquet")):
-            continue
-        structure.setdefault(model, {}).setdefault(str(n_v), [])
-        if n_c not in structure[model][str(n_v)]:
-            structure[model][str(n_v)].append(n_c)
+            structure.setdefault(model, {}).setdefault(str(n_v), [])
+            if n_c not in structure[model][str(n_v)]:
+                structure[model][str(n_v)].append(n_c)
+
     return structure
 
 
 def _load_series(base_path: str, model: str, n_v: int, n_c: int) -> Any:
-    """Charge les Parquet d'un dossier comme SimulationSeriesResult."""
+    """Charge les Parquet d'un dossier ou fichier cache comme SimulationSeriesResult.
+
+    Essaie dans l'ordre :
+    1. sim_result/{model}_v{n_v}_c{n_c}/*.parquet  (fichiers per-iteration)
+    2. results/{model}_v{n_v}_c{n_c}_i*.parquet    (fichier cache série complète)
+    """
     from vote_simulation.models.results.result_config import ResultConfig
     from vote_simulation.models.results.series_result import SimulationSeriesResult
     from vote_simulation.models.results.step_result import SimulationStepResult
 
+    # ── 1. sim_result/ per-iteration format ──────────────────────────────
     folder = Path(base_path) / "sim_result" / f"{model}_v{n_v}_c{n_c}"
     series = SimulationSeriesResult()
-    for fpath in sorted(folder.glob("*.parquet")):
-        step = SimulationStepResult(data_source=fpath.stem)
-        try:
-            step.load_from_file(str(fpath))
-            series.add_step(step)
-        except Exception:
-            pass
-    # Config explicite pour que SimulationTotalResult puisse l'indexer
-    if series.step_count > 0:
-        series.config = ResultConfig.single(
-            gen_model=model,
-            n_voters=n_v,
-            n_candidates=n_c,
-            n_iterations=series.step_count,
-        )
+    if folder.is_dir():
+        for fpath in sorted(folder.glob("*.parquet")):
+            step = SimulationStepResult(data_source=fpath.stem)
+            try:
+                step.load_from_file(str(fpath))
+                series.add_step(step)
+            except Exception:
+                pass
+        if series.step_count > 0:
+            series.config = ResultConfig.single(
+                gen_model=model,
+                n_voters=n_v,
+                n_candidates=n_c,
+                n_iterations=series.step_count,
+            )
+            return series
+
+    # ── 2. results/ series-cache format ──────────────────────────────────
+    res_root = Path(base_path) / "results"
+    candidates = sorted(res_root.glob(f"{model}_v{n_v}_c{n_c}_i*.parquet"))
+    if candidates:
+        # Use the most recent (largest n_iterations) cache file.
+        cache_file = candidates[-1]
+        series = SimulationSeriesResult()
+        series.load_from_file(str(cache_file))
+        if series.step_count > 0 and not series.config.gen_models:
+            series.config = ResultConfig.single(
+                gen_model=model,
+                n_voters=n_v,
+                n_candidates=n_c,
+                n_iterations=series.step_count,
+            )
+        return series
+
     return series
 
 

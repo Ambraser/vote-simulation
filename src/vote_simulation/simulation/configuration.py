@@ -83,11 +83,13 @@ def load_simulation_config(config_path: str | Path = DEFAULT_CONFIG_PATH) -> Sim
         generative_models = [str(m).strip().upper() for m in raw_gen_models if str(m).strip()]
 
     # --- Output base path ---
+    # Relative paths are resolved from the current working directory (the project root),
+    # consistent with how the UI and write_temp_toml resolve them.
     output_base_path = simulation.get("output_base_path", "data")
     if not isinstance(output_base_path, str) or not output_base_path.strip():
         output_base_path = "data"
     if not Path(output_base_path).is_absolute():
-        output_base_path = str((path.parent / output_base_path).resolve())
+        output_base_path = str(Path(output_base_path).resolve())
 
     # --- Per-model generator params (optional TOML sub-tables) ---
     generator_params: dict[str, dict[str, object]] = {}
@@ -103,7 +105,7 @@ def load_simulation_config(config_path: str | Path = DEFAULT_CONFIG_PATH) -> Sim
     if raw_input_folder is not None:
         input_folder_path = str(raw_input_folder).strip() or None
         if input_folder_path and not Path(input_folder_path).is_absolute():
-            input_folder_path = str((path.parent / input_folder_path).resolve())
+            input_folder_path = str(Path(input_folder_path).resolve())
 
     return SimulationConfig(
         rule_codes=normalized_rule_codes,
