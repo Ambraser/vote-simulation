@@ -222,11 +222,12 @@ def render_tab_generation() -> None:
             st.warning("Entrez au moins un nombre de candidats.")
 
     with col_i:
+        if "gen_iterations_slider" not in st.session_state:
+            st.session_state["gen_iterations_slider"] = int(cfg.get("iterations", 1000))
         iterations = st.slider(
             "Nombre d'itérations",
             min_value=1,
             max_value=10_000,
-            value=int(cfg.get("iterations", 1000)),
             step=1,
             key="gen_iterations_slider",
             help="Nombre d'itérations par combinaison (modèle × voters × candidats).",

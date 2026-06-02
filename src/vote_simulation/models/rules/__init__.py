@@ -8,6 +8,7 @@ from vote_simulation.models.rules import rule_borda as _rule_borda  # noqa: F401
 from vote_simulation.models.rules import rule_bucklin as _rule_bucklin  # noqa: F401
 from vote_simulation.models.rules import rule_coombs as _rule_coombs  # noqa: F401
 from vote_simulation.models.rules import rule_copeland as _rule_copeland  # noqa: F401
+from vote_simulation.models.rules import rule_depthfunction as _rule_depthfunction  # noqa: F401
 from vote_simulation.models.rules import rule_icrv as _rule_icrv  # noqa: F401
 from vote_simulation.models.rules import rule_irv as _rule_irv  # noqa: F401
 from vote_simulation.models.rules import rule_iterated_bucklin as _rule_iterated_bucklin  # noqa: F401

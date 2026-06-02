@@ -31,6 +31,7 @@ dependencies = [
   "nashpy>=0.0.43",
   "streamlit>=1.57.0",
   "tomli-w>=1.2.0",
+  "rpy2>=3.5.0",
 ]
 requires-python = ">= 3.12, < 3.15"
 
