@@ -419,8 +419,16 @@ def render_tab_results() -> None:
 
         series_key = f"_series_{base_path}_{sel_model}_{sel_voters}_{sel_cands}"
         if series_key not in st.session_state:
-            with st.spinner("Chargement de la série…"):
-                st.session_state[series_key] = _load_series(base_path, sel_model, int(sel_voters), int(sel_cands))
+            # Fast path: the total is already in memory — no disk I/O needed.
+            try:
+                st.session_state[series_key] = total.get_series(
+                    sel_model, int(sel_voters), int(sel_cands)
+                )
+            except KeyError:
+                with st.spinner("Chargement de la série…"):
+                    st.session_state[series_key] = _load_series(
+                        base_path, sel_model, int(sel_voters), int(sel_cands)
+                    )
         series = st.session_state[series_key]
 
         if series.step_count == 0:

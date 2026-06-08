@@ -660,9 +660,22 @@ class SimulationSeriesResult:
             self._rule_index = dict(step._rule_index)
             n = len(step_rules)
             self._matrix_sum = np.zeros((n, n), dtype=np.float64)
+        else:
+            # Expand the matrix if this step introduces rules not seen before.
+            new_rules = [r for r in step_rules if r not in self._rule_index]
+            if new_rules:
+                old_n = len(self._rule_order)
+                for r in new_rules:
+                    self._rule_index[r] = len(self._rule_order)
+                    self._rule_order.append(r)
+                new_n = len(self._rule_order)
+                expanded = np.zeros((new_n, new_n), dtype=np.float64)
+                expanded[:old_n, :old_n] = self._matrix_sum
+                self._matrix_sum = expanded
 
         # Build permutation mapping step column index → series column index.
-        # This handles the (rare) case where a step's rules are in a different order.
+        # This handles the (rare) case where a step's rules are in a different order,
+        # or when a step introduces rules not present in earlier steps.
         perm = np.array([self._rule_index[r] for r in step_rules], dtype=np.intp)
         self._matrix_sum[np.ix_(perm, perm)] += step._distance_matrix
         self._iteration_count += 1

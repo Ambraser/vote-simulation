@@ -222,6 +222,8 @@ def _build_gaussian_well(
     _seed(seed, iteration)
     if sigma is None:
         sigma = [1.0]
+    elif not hasattr(sigma, "__len__"):
+        sigma = [float(sigma)]
     gen = GeneratorProfileGaussianWell(n_v=n_v, n_c=n_c, sigma=sigma)
     return _relabel(gen(), n_c)
 

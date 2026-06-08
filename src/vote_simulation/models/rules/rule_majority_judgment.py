@@ -77,7 +77,7 @@ class MajorityJudgmentResult(SvvampRuleWrapper):
         max_tb = np.max(tiebreaks[med_mask])
         winners_mask = med_mask & (tiebreaks == max_tb)
 
-        return self._labels_for(np.flatnonzero(winners_mask))
+        return self._resolve_cowinners(np.flatnonzero(winners_mask))
 
 
 def _build_majority_judgment(

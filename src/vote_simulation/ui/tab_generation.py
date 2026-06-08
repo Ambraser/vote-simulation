@@ -7,6 +7,7 @@ avec suivi de progression en temps réel.
 
 from __future__ import annotations
 
+import json
 import queue
 import sys
 import threading
@@ -18,6 +19,26 @@ import streamlit as st
 from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ctx
 
 from vote_simulation.ui.toml_utils import QueueWriter, write_temp_toml
+
+# ---------------------------------------------------------------------------
+# Dictionnaire code → nom lisible (data generation)
+# ---------------------------------------------------------------------------
+
+_DICT_DATAGEN_PATH = Path(__file__).with_name("dict_datagen.json")
+
+
+@st.cache_resource(show_spinner=False)
+def _load_datagen_labels() -> dict[str, str]:
+    """Load code → human-readable label mapping for generative models."""
+    with _DICT_DATAGEN_PATH.open(encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _format_generator_code(code: str) -> str:
+    """Return 'CODE — Label' for display, falling back to the raw code."""
+    labels = _load_datagen_labels()
+    label = labels.get(code)
+    return f"{code} — {label}" if label else code
 
 
 @st.cache_resource(show_spinner=False)
@@ -188,6 +209,7 @@ def render_tab_generation() -> None:
         options=all_codes,
         default=None,
         key="gen_models_select",
+        format_func=_format_generator_code,
         help="Codes des modèles génératifs enregistrés dans le registre.",
     )
     cfg["generative_models"] = selected_models
