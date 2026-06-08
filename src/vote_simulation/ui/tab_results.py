@@ -152,6 +152,39 @@ def _load_total(
     return total
 
 
+def _total_result_dir(base_path: str) -> str:
+    """Chemin du répertoire de sauvegarde du SimulationTotalResult agrégé."""
+    return str(Path(base_path) / "results" / "_total_result")
+
+
+def _save_total_to_disk(total: Any, base_path: str) -> None:
+    """Persiste le total sur disque (silencieusement en cas d'erreur)."""
+    try:
+        total.save_to_dir(_total_result_dir(base_path))
+    except Exception:
+        pass
+
+
+def _load_total_from_disk(base_path: str) -> Any | None:
+    """Charge le total depuis le répertoire persisté, ou retourne None."""
+    from vote_simulation.models.results.total_result import SimulationTotalResult
+
+    d = _total_result_dir(base_path)
+    if not Path(d).is_dir() or not any(Path(d).glob("*.parquet")):
+        return None
+    try:
+        return SimulationTotalResult.load_from_dir(d)
+    except Exception:
+        return None
+
+
+def _delete_total_from_disk(base_path: str) -> None:
+    """Supprime le répertoire du total persisté."""
+    from vote_simulation.models.results.total_result import SimulationTotalResult
+
+    SimulationTotalResult.delete_dir(_total_result_dir(base_path))
+
+
 def _apply_filter(
     total: Any,
     models: list[str],
@@ -393,18 +426,33 @@ def render_tab_results() -> None:
     # Priorité 1 : résultat en mémoire construit pendant la simulation courante.
     # Évite de lire tous les Parquet depuis le disque après un Run complet.
     if cache_key not in st.session_state and "sim_total_result" in st.session_state:
-        st.session_state[cache_key] = st.session_state["sim_total_result"]
+        total_from_sim = st.session_state["sim_total_result"]
+        st.session_state[cache_key] = total_from_sim
+        # Persist to disk so next session loads directly from the saved total.
+        _save_total_to_disk(total_from_sim, base_path)
 
-    # Priorité 2 : chargement depuis le disque (premier affichage ou données existantes).
+    # Priorité 2 : chargement depuis le répertoire total persisté (rapide — une
+    # parquet par série avec métriques incluses, pas besoin de relire toutes les
+    # itérations individuelles).
+    if cache_key not in st.session_state:
+        saved = _load_total_from_disk(base_path)
+        if saved is not None and saved.series_count > 0:
+            st.session_state[cache_key] = saved
+
+    # Priorité 3 : chargement depuis le disque (premier affichage ou données existantes).
     # session_cache=st.session_state : chaque série chargée est aussi mise en cache
     # individuellement → zéro double-lecture parquet dans l'onglet "Analyse d'une série".
     if cache_key not in st.session_state:
         with st.spinner("Chargement initial de tous les résultats…"):
-            st.session_state[cache_key] = _load_total(base_path, structure, session_cache=st.session_state)
+            loaded = _load_total(base_path, structure, session_cache=st.session_state)
+            st.session_state[cache_key] = loaded
+            # Persist the aggregated total (with metrics) for faster future loads.
+            if loaded.series_count > 0:
+                _save_total_to_disk(loaded, base_path)
 
     total: Any = st.session_state[cache_key]
 
-    tab_serie, tab_global = st.tabs(["Analyse d'une série", "Vue globale"])
+    tab_serie, tab_global, tab_manage = st.tabs(["Analyse d'une série", "Vue globale", "Gestion des données"])
 
     # ══════════════════════════════════════════════════════════════════════════
     # Onglet A — Analyse d'une série
@@ -587,12 +635,19 @@ def render_tab_results() -> None:
             # Supprimer le total, les filtres appliqu\u00e9s et tous les caches de plots
             for _k in list(st.session_state.keys()):
                 if (
-                    _k in (cache_key, "gf_m_applied", "gf_v_applied", "gf_c_applied")
+                    _k in (cache_key, _scan_key, "gf_m_applied", "gf_v_applied", "gf_c_applied")
                     or (isinstance(_k, str) and _k.startswith("_filtered_"))
                     or (isinstance(_k, str) and _k.startswith("_plt_g_"))
                     or (isinstance(_k, str) and _k.startswith("_avail_rules_"))
+                    or (isinstance(_k, str) and _k.startswith("_series_"))
+                    or (isinstance(_k, str) and _k.startswith("_total_one_"))
+                    or (isinstance(_k, str) and _k.startswith("_g_dist_df_"))
+                    or (isinstance(_k, str) and _k.startswith("_g_met_df_"))
                 ):
                     del st.session_state[_k]
+            # Supprimer aussi le cache disque du total agrégé pour forcer la
+            # reconstruction depuis les séries individuelles (inclut nouvelles séries).
+            _delete_total_from_disk(base_path)
             st.rerun()
 
         # Filtres avec bouton Appliquer pour éviter toute recomputation à chaque widget
@@ -796,3 +851,145 @@ def render_tab_results() -> None:
                     "dl_g_pair",
                     f"pair_{rule_a}_{rule_b}.png",
                 )
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Onglet C — Gestion des données
+    # ══════════════════════════════════════════════════════════════════════════
+    with tab_manage:
+        import shutil
+
+        st.subheader("Gestion des données")
+
+        # ── Cache total agrégé ───────────────────────────────────────────────
+        st.markdown("### Cache total agrégé")
+        total_dir = Path(_total_result_dir(base_path))
+        total_files = list(total_dir.glob("*.parquet")) if total_dir.is_dir() else []
+        if total_files:
+            st.info(
+                f"Cache total présent : **{len(total_files)} série(s)** dans `{total_dir}`.\n\n"
+                "Ce cache est utilisé pour charger les résultats rapidement sans relire toutes les itérations."
+            )
+            if st.button(
+                "🗑️ Supprimer le cache total",
+                key="btn_del_total_cache",
+                help="Force le rechargement depuis les séries individuelles à la prochaine ouverture.",
+            ):
+                _delete_total_from_disk(base_path)
+                # Clear session-state references
+                for _k in list(st.session_state.keys()):
+                    if _k == cache_key or (isinstance(_k, str) and _k.startswith("_filtered_")):
+                        del st.session_state[_k]
+                st.success("Cache total supprimé. Les résultats seront rechargés depuis les séries individuelles.")
+                st.rerun()
+        else:
+            st.info("Aucun cache total présent.")
+            if st.button("💾 Enregistrer le total actuel sur disque", key="btn_save_total_now"):
+                _save_total_to_disk(total, base_path)
+                st.success(f"Total sauvegardé dans `{total_dir}`.")
+
+        st.divider()
+
+        # ── Suppression de séries individuelles ──────────────────────────────
+        st.markdown("### Supprimer des séries individuelles")
+        st.caption(
+            "Supprime les fichiers parquet de la série sélectionnée dans `results/` et `sim_result/`."
+        )
+
+        if not structure:
+            st.info("Aucune série disponible.")
+        else:
+            dm1, dm2, dm3 = st.columns(3)
+            del_model = dm1.selectbox("Modèle", sorted(structure.keys()), key="del_model")
+            del_voters_opts = sorted(structure.get(del_model, {}).keys(), key=int)
+            del_voters = dm2.selectbox("Votants", del_voters_opts, key="del_voters")
+            del_cands_opts = sorted(structure.get(del_model, {}).get(del_voters, []))
+            del_cands = dm3.selectbox("Candidats", del_cands_opts, key="del_cands")
+
+            # Show what would be deleted
+            _del_res_files = sorted(
+                (Path(base_path) / "results").glob(f"{del_model}_v{del_voters}_c{del_cands}_i*.parquet")
+            )
+            _del_sim_dir = Path(base_path) / "sim_result" / f"{del_model}_v{del_voters}_c{del_cands}"
+            _del_sim_files = sorted(_del_sim_dir.glob("*.parquet")) if _del_sim_dir.is_dir() else []
+            _del_total_file = total_dir / f"{del_model}_v{del_voters}_c{del_cands}.parquet"
+
+            n_files = len(_del_res_files) + len(_del_sim_files) + (1 if _del_total_file.is_file() else 0)
+            if n_files > 0:
+                st.warning(
+                    f"Fichiers qui seront supprimés : **{n_files}** "
+                    f"({len(_del_res_files)} résultats, {len(_del_sim_files)} itérations individuelles, "
+                    f"{'1 entrée du cache total' if _del_total_file.is_file() else '0 entrée du cache total'})"
+                )
+            else:
+                st.info("Aucun fichier trouvé pour cette combinaison.")
+
+            if st.button(
+                f"🗑️ Supprimer {del_model} v{del_voters} c{del_cands}",
+                key="btn_del_series",
+                disabled=(n_files == 0),
+                type="primary",
+            ):
+                deleted = 0
+                for f in _del_res_files + _del_sim_files:
+                    try:
+                        f.unlink()
+                        deleted += 1
+                    except OSError:
+                        pass
+                if _del_total_file.is_file():
+                    try:
+                        _del_total_file.unlink()
+                        deleted += 1
+                    except OSError:
+                        pass
+                if _del_sim_dir.is_dir() and not any(_del_sim_dir.iterdir()):
+                    try:
+                        _del_sim_dir.rmdir()
+                    except OSError:
+                        pass
+                # Invalidate caches
+                _series_del_key = f"_series_{base_path}_{del_model}_{del_voters}_{del_cands}"
+                for _k in list(st.session_state.keys()):
+                    if _k in (cache_key, _scan_key, _series_del_key) or (
+                        isinstance(_k, str) and (_k.startswith("_filtered_") or _k.startswith("_plt_g_"))
+                    ):
+                        del st.session_state[_k]
+                st.success(f"{deleted} fichier(s) supprimé(s).")
+                st.rerun()
+
+        st.divider()
+
+        # ── Suppression de toutes les séries ─────────────────────────────────
+        st.markdown("### ⚠️ Supprimer tous les résultats de simulation")
+        st.caption("Supprime le contenu de `results/`, `sim_result/` et le cache total. Les données générées (`gen/`) ne sont pas affectées.")
+        _confirm_del_all = st.checkbox(
+            "Je confirme vouloir supprimer tous les résultats de simulation",
+            key="del_all_confirm",
+        )
+        if st.button(
+            "🗑️ Supprimer tous les résultats",
+            key="btn_del_all",
+            disabled=not _confirm_del_all,
+            type="primary",
+        ):
+            _del_count = 0
+            for _dir_name in ("results", "sim_result"):
+                _dir = Path(base_path) / _dir_name
+                if _dir.is_dir():
+                    try:
+                        shutil.rmtree(str(_dir))
+                        _del_count += 1
+                    except OSError:
+                        pass
+            # Clear all result caches in session state
+            for _k in list(st.session_state.keys()):
+                if any(
+                    isinstance(_k, str) and _k.startswith(pfx)
+                    for pfx in ("_res_total_", "_scan_struct_", "_series_", "_filtered_", "_plt_", "_total_one_",
+                                "_g_dist_df_", "_g_met_df_", "_avail_rules_")
+                ):
+                    del st.session_state[_k]
+            st.session_state.pop("sim_total_result", None)
+            st.success(f"Suppression effectuée ({_del_count} dossier(s) supprimé(s)).")
+            st.rerun()
+

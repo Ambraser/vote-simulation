@@ -151,6 +151,23 @@ def compute_winner_metrics(
     idx = np.asarray(cowinner_indices, dtype=int)
     n_c: int = int(profile.n_c)
     n_w: int = int(idx.size)
+
+    if n_w == 0:
+        # No co-winners (degenerate case) — return neutral/zero metrics.
+        return WinnerMetrics(
+            social_acceptability=0.0,
+            utility_mean=0.0,
+            utility_median=0.0,
+            utility_var=0.0,
+            rank_mean=0.0,
+            rank_median=0.0,
+            rank_var=0.0,
+            freq_first=0.0,
+            freq_last=0.0,
+            has_tie=False,
+            n_cowinners=0,
+        )
+
     has_tie = n_w > 1
 
     # Utility metrics                                                      #
