@@ -89,7 +89,7 @@ class DepthFunctionResult(SvvampRuleWrapper):
         The profile used for this election.
     """
 
-    def __init__(self, profile: Profile) -> None:
+    def __init__(self, profile: Profile, exact_threshold: int = EXACT_THRESHOLD) -> None:
         self.profile_ = profile
         n_c: int = profile.n_c
         n_v: int = profile.n_v
@@ -98,7 +98,7 @@ class DepthFunctionResult(SvvampRuleWrapper):
         # p[i, j] = fraction of voters who rank candidate i strictly before j.
         p: np.ndarray = np.array(profile.matrix_duels_rk, dtype=float) / max(n_v, 1)
 
-        if n_c <= EXACT_THRESHOLD:
+        if n_c <= exact_threshold:
             scores, winner_indices = self._exact(p, n_c)
         else:
             scores, winner_indices = self._greedy(p, n_c)
@@ -233,6 +233,8 @@ class DepthFunctionResult(SvvampRuleWrapper):
         for pos, cand in enumerate(ranking):
             rank_pos[cand] = pos
         return DepthFunctionResult._depth_from_rank_pos(rank_pos, p, n_c)
+    
+    
 
 
 # ---------------------------------------------------------------------------
@@ -240,12 +242,11 @@ class DepthFunctionResult(SvvampRuleWrapper):
 # ---------------------------------------------------------------------------
 
 
-def _build_depthfunction():
-    """Return a :data:`~vote_simulation.models.rules.registry.RuleBuilder` for the Depth Function rule."""
+def _build_depthfunction(exact_threshold: int = EXACT_THRESHOLD):
 
     def builder(profile_or_ballots: RuleInput, candidates: set[str] | None = None) -> RuleResult:
         profile = _ensure_profile(profile_or_ballots, candidates)
-        return DepthFunctionResult(profile)
+        return DepthFunctionResult(profile, exact_threshold=exact_threshold)
 
     return builder
 
@@ -255,3 +256,5 @@ def _build_depthfunction():
 # ---------------------------------------------------------------------------
 
 register_rule("DEPF", _build_depthfunction())
+register_rule("DEPF_GREEDY", _build_depthfunction(exact_threshold=0))
+register_rule("DEPF_EXACT", _build_depthfunction(exact_threshold=float("inf")))
