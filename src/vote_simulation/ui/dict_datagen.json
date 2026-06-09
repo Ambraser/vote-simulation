@@ -1,0 +1,20 @@
+{
+    "UNI": "Cubic Uniform",
+    "IC": "Impartial Culture",
+    "IANC": "Impartial Anonymous and Neutral Culture",
+    "EUCLID": "Euclidean Box",
+    "EUCLID_1D": "Euclidean Box (1D)",
+    "EUCLID_2D": "Euclidean Box (2D)",
+    "EUCLID_3D": "Euclidean Box (3D)",
+    "EUCLID_5D": "Euclidean Box (5D)",
+    "GAUSS": "Gaussian Well",
+    "LADDER": "Ladder",
+    "SPHEROID": "Spheroid",
+    "PERTURB": "Perturbed Culture",
+    "UNANIMOUS": "Unanimous",
+    "UFR": "Uniform Few Rankings",
+    "VMF_HC": "Von Mises-Fisher Hypercircle",
+    "VMF_HS": "Von Mises-Fisher Hypersphere",
+    "DDD_BETA": "DDD Beta (random Beta marginals)",
+    "DDD_BETA_POLAR": "DDD Beta Polarised (symmetric Beta marginals)"
+}

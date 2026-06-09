@@ -16,7 +16,7 @@ Typical workflow::
                 series = simulation_instance(model, n_v, n_c, rules)
                 total.add_series(series)
 
-    # Fix model, compare across voters × candidates
+    # Fix model, compare across voters x candidates
     uni = total.filter(gen_model="UNI")
     uni.plot_metric_heatmap(row_param="n_voters", col_param="n_candidates")
 

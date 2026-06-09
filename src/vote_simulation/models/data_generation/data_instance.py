@@ -121,10 +121,12 @@ class DataInstance:
         Returns:
             A new ``DataInstance`` whose profile was generated in-memory.
         """
+        from vote_simulation.models.data_generation.from_r_registry import register_r_generators
         from vote_simulation.models.data_generation.generator_registry import (
             get_generator_builder,
         )
 
+        register_r_generators()
         builder = get_generator_builder(model_code)
         profile: Profile = builder(n_v, n_c, seed=seed, iteration=iteration, **extra_params)
 

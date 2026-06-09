@@ -7,6 +7,7 @@ avec suivi de progression en temps réel.
 
 from __future__ import annotations
 
+import json
 import queue
 import sys
 import threading
@@ -19,12 +20,34 @@ from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ct
 
 from vote_simulation.ui.toml_utils import QueueWriter, write_temp_toml
 
+# ---------------------------------------------------------------------------
+# Dictionnaire code → nom lisible (data generation)
+# ---------------------------------------------------------------------------
+
+_DICT_DATAGEN_PATH = Path(__file__).with_name("dict_datagen.json")
+
+
+@st.cache_resource(show_spinner=False)
+def _load_datagen_labels() -> dict[str, str]:
+    """Load code → human-readable label mapping for generative models."""
+    with _DICT_DATAGEN_PATH.open(encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _format_generator_code(code: str) -> str:
+    """Return 'CODE — Label' for display, falling back to the raw code."""
+    labels = _load_datagen_labels()
+    label = labels.get(code)
+    return f"{code} — {label}" if label else code
+
 
 @st.cache_resource(show_spinner=False)
 def _cached_generator_codes() -> list[str]:
     """Liste des codes de modèles génératifs — mise en cache pour la session."""
+    from vote_simulation.models.data_generation.from_r_registry import register_r_generators
     from vote_simulation.models.data_generation.generator_registry import list_generator_codes
 
+    register_r_generators()
     return list_generator_codes()
 
 
@@ -186,6 +209,7 @@ def render_tab_generation() -> None:
         options=all_codes,
         default=None,
         key="gen_models_select",
+        format_func=_format_generator_code,
         help="Codes des modèles génératifs enregistrés dans le registre.",
     )
     cfg["generative_models"] = selected_models
@@ -222,11 +246,12 @@ def render_tab_generation() -> None:
             st.warning("Entrez au moins un nombre de candidats.")
 
     with col_i:
+        if "gen_iterations_slider" not in st.session_state:
+            st.session_state["gen_iterations_slider"] = int(cfg.get("iterations", 1000))
         iterations = st.slider(
             "Nombre d'itérations",
             min_value=1,
             max_value=10_000,
-            value=int(cfg.get("iterations", 1000)),
             step=1,
             key="gen_iterations_slider",
             help="Nombre d'itérations par combinaison (modèle × voters × candidats).",

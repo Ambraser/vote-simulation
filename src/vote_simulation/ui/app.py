@@ -128,10 +128,19 @@ def _simulation_target(
     _sim_module.tqdm = _ProcTqdm  # type: ignore[assignment]
     try:
         result = simulation_series_from_config_2(config_path, reload=reload, compute_metrics=True)
+        # Serialize via a temp file instead of the queue (avoids mp queue size limits
+        # and multiprocessing pickle overhead for large numpy-heavy objects).
+        import os
+        import pickle
+        import tempfile
+
         try:
-            mp_queue.put(("done", result))
+            fd, tmp_path = tempfile.mkstemp(suffix=".pkl", prefix="vote_sim_result_")
+            with os.fdopen(fd, "wb") as fh:
+                pickle.dump(result, fh, protocol=pickle.HIGHEST_PROTOCOL)
+            mp_queue.put(("done_file", tmp_path))
         except Exception:
-            # SimulationTotalResult non-picklable — les résultats restent sur disque
+            # Fallback: results are already on disk; main process will re-read them.
             mp_queue.put(("done", None))
     except InterruptedError as exc:
         mp_queue.put(("cancelled", str(exc)))
@@ -193,10 +202,32 @@ def _run_full(
                 if now - last_st_update >= 0.15:
                     st.session_state["full_run_progress"] = (current, total)
                     last_st_update = now
-            elif msg_type == "done":
-                result = msg[1]
-                if result is not None:
+            elif msg_type == "done_file":
+                import os
+                import pickle
+
+                tmp_path = msg[1]
+                try:
+                    with open(tmp_path, "rb") as fh:
+                        result = pickle.load(fh)
                     st.session_state["sim_total_result"] = result
+                except Exception:
+                    pass  # Results remain on disk; Results tab will load lazily.
+                finally:
+                    try:
+                        os.unlink(tmp_path)
+                    except OSError:
+                        pass
+                _cur_total = st.session_state.get("full_run_progress", (0, 1))[1]
+                st.session_state["full_run_progress"] = (_cur_total, _cur_total)
+                log_q.put("Run complet terminé.")
+                st.session_state["full_run_done"] = True
+                st.session_state["full_run_error"] = None
+                st.session_state["global_status"] = "Terminé"
+                proc.join()
+                return
+            elif msg_type == "done":
+                # Fallback: subprocess could not serialize the result.
                 _cur_total = st.session_state.get("full_run_progress", (0, 1))[1]
                 st.session_state["full_run_progress"] = (_cur_total, _cur_total)
                 log_q.put("Run complet terminé.")

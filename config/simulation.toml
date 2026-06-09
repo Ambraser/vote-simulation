@@ -1,6 +1,6 @@
 [simulation]
 # Root directory for gen/ and sim_result/
-output_base_path = "../data/"
+output_base_path = "data"
 
 # Data generation models (codes registered in generator_registry)
 # Available: UNI, IC, IANC, EUCLID, GAUSS, LADDER, SPHEROID, PERTURB, UNANIMOUS, UFR, VMF_HC, VMF_HS

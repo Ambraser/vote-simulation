@@ -565,7 +565,22 @@ class SimulationSeriesResult:
         # Store aggregated config in schema metadata
         existing_meta = table.schema.metadata or {}
         config_meta = {f"vote_sim:{k}".encode(): v.encode() for k, v in self._config.to_dict().items()}
-        table = table.replace_schema_metadata({**existing_meta, **config_meta})
+
+        # Persist metric accumulators so they survive a round-trip through disk.
+        # Serialised as JSON under the key "vote_sim:metrics".
+        import json as _json
+
+        if self._metrics_sum:
+            metrics_payload = {
+                "sum": {rule: arr.tolist() for rule, arr in self._metrics_sum.items()},
+                "sum_sq": {rule: arr.tolist() for rule, arr in self._metrics_sum_sq.items()},
+                "count": {rule: int(c) for rule, c in self._metrics_count.items()},
+            }
+            metrics_meta = {b"vote_sim:metrics": _json.dumps(metrics_payload).encode()}
+        else:
+            metrics_meta = {}
+
+        table = table.replace_schema_metadata({**existing_meta, **config_meta, **metrics_meta})
 
         os.makedirs(os.path.dirname(os.path.abspath(file_path)), exist_ok=True)
         pq.write_table(table, file_path)
@@ -588,7 +603,7 @@ class SimulationSeriesResult:
         config_dict = {
             k.decode().removeprefix("vote_sim:"): v.decode()
             for k, v in meta.items()
-            if k.decode().startswith("vote_sim:")
+            if k.decode().startswith("vote_sim:") and k != b"vote_sim:metrics"
         }
 
         df = table.to_pandas()
@@ -630,6 +645,26 @@ class SimulationSeriesResult:
         if config_dict:
             self._config = ResultConfig.from_dict(config_dict)
 
+        # Restore metric accumulators if they were persisted in the metadata.
+        # This is backward-compatible: files without "vote_sim:metrics" will
+        # simply have empty metric accumulators (metrics not available).
+        import json as _json
+
+        metrics_raw = meta.get(b"vote_sim:metrics")
+        if metrics_raw:
+            try:
+                payload = _json.loads(metrics_raw.decode())
+                self._metrics_sum = {
+                    rule: np.array(arr, dtype=np.float64) for rule, arr in payload.get("sum", {}).items()
+                }
+                self._metrics_sum_sq = {
+                    rule: np.array(arr, dtype=np.float64) for rule, arr in payload.get("sum_sq", {}).items()
+                }
+                self._metrics_count = {rule: int(c) for rule, c in payload.get("count", {}).items()}
+            except Exception:
+                # Corrupted metadata — silently ignore; metrics will be unavailable.
+                pass
+
     @staticmethod
     def delete_file(file_path: str) -> bool:
         """Delete a saved series result file.
@@ -660,9 +695,22 @@ class SimulationSeriesResult:
             self._rule_index = dict(step._rule_index)
             n = len(step_rules)
             self._matrix_sum = np.zeros((n, n), dtype=np.float64)
+        else:
+            # Expand the matrix if this step introduces rules not seen before.
+            new_rules = [r for r in step_rules if r not in self._rule_index]
+            if new_rules:
+                old_n = len(self._rule_order)
+                for r in new_rules:
+                    self._rule_index[r] = len(self._rule_order)
+                    self._rule_order.append(r)
+                new_n = len(self._rule_order)
+                expanded = np.zeros((new_n, new_n), dtype=np.float64)
+                expanded[:old_n, :old_n] = self._matrix_sum
+                self._matrix_sum = expanded
 
         # Build permutation mapping step column index → series column index.
-        # This handles the (rare) case where a step's rules are in a different order.
+        # This handles the (rare) case where a step's rules are in a different order,
+        # or when a step introduces rules not present in earlier steps.
         perm = np.array([self._rule_index[r] for r in step_rules], dtype=np.intp)
         self._matrix_sum[np.ix_(perm, perm)] += step._distance_matrix
         self._iteration_count += 1

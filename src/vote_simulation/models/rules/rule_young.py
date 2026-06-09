@@ -65,7 +65,7 @@ class YoungResult(SvvampRuleWrapper):
             if indices.size >= 1:
                 return self._resolve_cowinners(indices)
 
-        return []
+        return self._resolve_cowinners(np.array([], dtype=int))
 
 
 # ---------------------------------------------------------------------------
