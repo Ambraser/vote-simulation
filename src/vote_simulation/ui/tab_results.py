@@ -56,6 +56,7 @@ def _scan_sim_result(base_path: str) -> dict[str, dict[str, list[int]]]:
     res_root = Path(base_path) / "results"
     if res_root.is_dir():
         import re
+
         _pat = re.compile(r"^([A-Za-z0-9_]+)_v(\d+)_c(\d+)_i\d+\.parquet$")
         for fpath in sorted(res_root.glob("*.parquet")):
             m = _pat.match(fpath.name)
@@ -469,14 +470,10 @@ def render_tab_results() -> None:
         if series_key not in st.session_state:
             # Fast path: the total is already in memory — no disk I/O needed.
             try:
-                st.session_state[series_key] = total.get_series(
-                    sel_model, int(sel_voters), int(sel_cands)
-                )
+                st.session_state[series_key] = total.get_series(sel_model, int(sel_voters), int(sel_cands))
             except KeyError:
                 with st.spinner("Chargement de la série…"):
-                    st.session_state[series_key] = _load_series(
-                        base_path, sel_model, int(sel_voters), int(sel_cands)
-                    )
+                    st.session_state[series_key] = _load_series(base_path, sel_model, int(sel_voters), int(sel_cands))
         series = st.session_state[series_key]
 
         if series.step_count == 0:
@@ -891,9 +888,7 @@ def render_tab_results() -> None:
 
         # ── Suppression de séries individuelles ──────────────────────────────
         st.markdown("### Supprimer des séries individuelles")
-        st.caption(
-            "Supprime les fichiers parquet de la série sélectionnée dans `results/` et `sim_result/`."
-        )
+        st.caption("Supprime les fichiers parquet de la série sélectionnée dans `results/` et `sim_result/`.")
 
         if not structure:
             st.info("Aucune série disponible.")
@@ -961,7 +956,10 @@ def render_tab_results() -> None:
 
         # ── Suppression de toutes les séries ─────────────────────────────────
         st.markdown("### ⚠️ Supprimer tous les résultats de simulation")
-        st.caption("Supprime le contenu de `results/`, `sim_result/` et le cache total. Les données générées (`gen/`) ne sont pas affectées.")
+        st.caption(
+            "Supprime le contenu de `results/`, `sim_result/` et le cache total. "
+            "Les données générées (`gen/`) ne sont pas affectées."
+        )
         _confirm_del_all = st.checkbox(
             "Je confirme vouloir supprimer tous les résultats de simulation",
             key="del_all_confirm",
@@ -985,11 +983,19 @@ def render_tab_results() -> None:
             for _k in list(st.session_state.keys()):
                 if any(
                     isinstance(_k, str) and _k.startswith(pfx)
-                    for pfx in ("_res_total_", "_scan_struct_", "_series_", "_filtered_", "_plt_", "_total_one_",
-                                "_g_dist_df_", "_g_met_df_", "_avail_rules_")
+                    for pfx in (
+                        "_res_total_",
+                        "_scan_struct_",
+                        "_series_",
+                        "_filtered_",
+                        "_plt_",
+                        "_total_one_",
+                        "_g_dist_df_",
+                        "_g_met_df_",
+                        "_avail_rules_",
+                    )
                 ):
                     del st.session_state[_k]
             st.session_state.pop("sim_total_result", None)
             st.success(f"Suppression effectuée ({_del_count} dossier(s) supprimé(s)).")
             st.rerun()
-

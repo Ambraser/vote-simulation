@@ -133,6 +133,7 @@ def _simulation_target(
         import os
         import pickle
         import tempfile
+
         try:
             fd, tmp_path = tempfile.mkstemp(suffix=".pkl", prefix="vote_sim_result_")
             with os.fdopen(fd, "wb") as fh:
@@ -204,6 +205,7 @@ def _run_full(
             elif msg_type == "done_file":
                 import os
                 import pickle
+
                 tmp_path = msg[1]
                 try:
                     with open(tmp_path, "rb") as fh:

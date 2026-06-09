@@ -233,8 +233,6 @@ class DepthFunctionResult(SvvampRuleWrapper):
         for pos, cand in enumerate(ranking):
             rank_pos[cand] = pos
         return DepthFunctionResult._depth_from_rank_pos(rank_pos, p, n_c)
-    
-    
 
 
 # ---------------------------------------------------------------------------
@@ -257,4 +255,4 @@ def _build_depthfunction(exact_threshold: int = EXACT_THRESHOLD):
 
 register_rule("DEPF", _build_depthfunction())
 register_rule("DEPF_GREEDY", _build_depthfunction(exact_threshold=0))
-register_rule("DEPF_EXACT", _build_depthfunction(exact_threshold=float("inf")))
+register_rule("DEPF_EXACT", _build_depthfunction(exact_threshold=150))
