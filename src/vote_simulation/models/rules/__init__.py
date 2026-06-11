@@ -14,6 +14,7 @@ from vote_simulation.models.rules import rule_irv as _rule_irv  # noqa: F401
 from vote_simulation.models.rules import rule_iterated_bucklin as _rule_iterated_bucklin  # noqa: F401
 from vote_simulation.models.rules import rule_k_approval as _rule_k_approval  # noqa: F401
 from vote_simulation.models.rules import rule_kemeny as _rule_kemeny  # noqa: F401
+from vote_simulation.models.rules import rule_lpvd as _rule_lpvd  # noqa: F401
 from vote_simulation.models.rules import rule_kim_roush as _rule_kim_roush  # noqa: F401
 from vote_simulation.models.rules import rule_majority_judgment as _rule_majority_judgment  # noqa: F401
 from vote_simulation.models.rules import rule_maximin as _rule_maximin  # noqa: F401
