@@ -1,0 +1,38 @@
+[simulation]
+generative_models = [
+    "UNI",
+]
+rule_codes = [
+    "BUCK_R",
+    "HARE",
+    "PLU1",
+    "PLU2",
+    "BLAC",
+    "COPE",
+    "DODG_S",
+    "SCHU",
+    "YOUN",
+    "BORD",
+    "COOM",
+    "NANS",
+    "MJ",
+    "RV",
+    "STAR",
+    "AP_T",
+    "AP_T0GE",
+    "AP_K4",
+    "L4DV",
+    "L6DV",
+    "MMIN",
+    "RANDOM_DICTATOR",
+    "RANDOM_WINNER",
+]
+iterations = 1000
+output_base_path = "data/"
+seed = 2026
+candidates = [
+    9,
+]
+voters = [
+    500,
+]

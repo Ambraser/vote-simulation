@@ -128,7 +128,7 @@ def _build_approval(
 # Rule registrations
 
 # Threshold = 0 (default svvamp behaviour)
-register_rule("AP_T0", _build_approval(approval_threshold=0.0, approval_comparator=">"))
+register_rule("AP_T0GE", _build_approval(approval_threshold=0.0, approval_comparator=">="))
 
 # Threshold = 0.5
 register_rule("AP_T05", _build_approval(approval_threshold=0.5, approval_comparator=">"))

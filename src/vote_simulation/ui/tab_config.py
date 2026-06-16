@@ -45,7 +45,7 @@ def _clear_cfg_widget_keys() -> None:
     st.session_state["gen_candidates_input"] = ", ".join(str(c) for c in cfg.get("candidates", []))
     st.session_state["gen_iterations_slider"] = int(cfg.get("iterations", 1000))
 
-    # Widgets optionnels (radio/text source données) — simple suppression suffit
+    # ──── Widgets optionnels (radio/text source données) — simple suppression suffit
     for key in ("sim_data_source", "sim_input_folder"):
         st.session_state.pop(key, None)
 
@@ -141,6 +141,22 @@ def render_tab_config() -> None:
             st.session_state.pop("_last_upload_id", None)  # autorise un re-upload
             # Effacer toutes les traces de l'ancienne config chargée/temp.
             for _k in ("_original_toml_name", "_original_cfg_hash", "_active_tmp_cfg_hash", "_active_tmp_toml_path"):
+                st.session_state.pop(_k, None)
+            # Effacer les caches de résultats de simulation.
+            st.session_state.pop("sim_total_result", None)
+            for _k in [k for k in st.session_state if isinstance(k, str) and (
+                k.startswith("_res_total_") or k.startswith("_scan_struct_")
+            )]:
+                del st.session_state[_k]
+            # Réinitialiser les états de run (génération, simulation, run complet).
+            for _k in (
+                "gen_running", "gen_done", "gen_error", "gen_log_messages",
+                "gen_files_count", "gen_total_size_mb",
+                "sim_running", "sim_done", "sim_error", "sim_log_messages",
+                "full_run_running", "full_run_done", "full_run_error",
+                "full_run_logs", "_full_run_final_rerun_done", "_sim_final_rerun_done",
+                "_cfg_saved_gen_models", "_cfg_post_run_restore", "_cfg_saved_rule_codes",
+            ):
                 st.session_state.pop(_k, None)
             _clear_cfg_widget_keys()
             st.rerun()

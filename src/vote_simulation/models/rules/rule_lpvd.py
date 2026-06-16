@@ -49,7 +49,7 @@ def _lp_frechet_mean(scores: np.ndarray, p: float) -> float:
     if lo == hi:
         return lo
     result = minimize_scalar(
-        lambda y: float(np.sum((scores - y) ** p)),
+        lambda y: float(np.sum(np.abs(scores - y) ** p)),
         bounds=(lo, hi),
         method="bounded",
     )
@@ -64,7 +64,7 @@ def _lp_mean(utilities: np.ndarray, p: float) -> np.ndarray:
     utilities:
         2-D array of shape ``(n_voters, n_candidates)``.
     p:
-        The exponent (must be a positive even integer for convexity).
+        The exponent (must be a positive integer).
 
     Returns
     -------
@@ -121,10 +121,10 @@ def _build_lpvd(*, p: float = 4):
 
     return builder
 
+
 register_rule("L1DV", _build_lpvd(p=1))  # L1 mean = arithmetic mean = utilitarian voting
 register_rule("L2DV", _build_lpvd(p=2))  # L2 mean = quadratic mean
 register_rule("L3DV", _build_lpvd(p=3))  # L3 mean
 register_rule("L4DV", _build_lpvd(p=4))  # L4 mean
 register_rule("L5DV", _build_lpvd(p=5))  # L5 mean
 register_rule("L6DV", _build_lpvd(p=6))  # L6 mean
-

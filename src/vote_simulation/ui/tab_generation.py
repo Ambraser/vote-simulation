@@ -228,9 +228,8 @@ def render_tab_generation() -> None:
             help="Entiers séparés par des virgules. Ex : 11, 101, 1001",
         )
         voters = _parse_int_list(voters_str)
-        if voters:
-            cfg["voters"] = voters
-        else:
+        cfg["voters"] = voters
+        if not voters:
             st.warning("Entrez au moins un nombre de votants.")
 
     with col_c:
@@ -240,9 +239,8 @@ def render_tab_generation() -> None:
             help="Entiers séparés par des virgules. Ex : 3, 14",
         )
         candidates = _parse_int_list(candidates_str)
-        if candidates:
-            cfg["candidates"] = candidates
-        else:
+        cfg["candidates"] = candidates
+        if not candidates:
             st.warning("Entrez au moins un nombre de candidats.")
 
     with col_i:

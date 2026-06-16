@@ -279,7 +279,7 @@ def render_tab_simulation() -> None:
             st.rerun()
 
     st.subheader("Sélection des règles par famille")
-    selected_rules: list[str] = []
+    new_selection_family_order: list[str] = []  # accumulation in family order (for new-rule detection)
 
     for family_label, family_id in _FAMILIES:
         codes_in_family = family_map.get(family_id, [])
@@ -293,16 +293,17 @@ def render_tab_simulation() -> None:
             fc1, fc2 = st.columns(2)
             with fc1:
                 if st.button(f"Tout — {family_label}", key=f"sel_all_{family_id}"):
-                    existing = set(cfg.get("rule_codes", []))
-                    existing.update(codes_in_family)
-                    cfg["rule_codes"] = list(existing)
+                    existing_ordered = cfg.get("rule_codes", [])
+                    existing_set = set(existing_ordered)
+                    cfg["rule_codes"] = existing_ordered + [
+                        c for c in codes_in_family if c not in existing_set
+                    ]
                     st.session_state[f"rules_family_{family_id}"] = codes_in_family
                     st.rerun()
             with fc2:
                 if st.button(f"Aucun — {family_label}", key=f"sel_none_{family_id}"):
-                    existing = set(cfg.get("rule_codes", []))
-                    existing.difference_update(codes_in_family)
-                    cfg["rule_codes"] = list(existing)
+                    to_remove = set(codes_in_family)
+                    cfg["rule_codes"] = [r for r in cfg.get("rule_codes", []) if r not in to_remove]
                     st.session_state[f"rules_family_{family_id}"] = []
                     st.rerun()
 
@@ -314,18 +315,31 @@ def render_tab_simulation() -> None:
                 format_func=_format_rule_code,
                 label_visibility="collapsed",
             )
-            selected_rules.extend(chosen)
+            new_selection_family_order.extend(chosen)
 
-    # Mettre à jour cfg avec toutes les règles sélectionnées
-    cfg["rule_codes"] = selected_rules
+    # ────────────────────────────────────────────────────────────────────────
+    # Mettre à jour cfg en préservant l'ordre personnalisé :
+    #   - les règles déjà présentes conservent leur position,
+    #   - les règles nouvellement ajoutées sont appendées à la fin (ordre famille),
+    #   - les règles désélectionnées sont retirées.
+    new_selected_set = set(new_selection_family_order)
+    old_ordered = cfg.get("rule_codes", [])
+    preserved_ordered: list[str] = [r for r in old_ordered if r in new_selected_set]
+    preserved_set = set(preserved_ordered)
+    for r in new_selection_family_order:
+        if r not in preserved_set:
+            preserved_ordered.append(r)
+            preserved_set.add(r)
+    cfg["rule_codes"] = preserved_ordered
+    selected_rules = preserved_ordered  # alias for the rest of the tab
 
     # Résumé
     st.info(f"**{len(selected_rules)} règle(s) sélectionnée(s)** sur {len(all_codes)} disponibles.")
 
     st.divider()
 
-    # -----------------------------------------------------------------------
-    # 3.2 Source des données
+    # ────────────────────────────────────────────────────────────────────────
+    # 3.3 Source des données
     # -----------------------------------------------------------------------
     st.subheader("Source des données")
 
@@ -393,6 +407,14 @@ def render_tab_simulation() -> None:
                 st.session_state[_SIM_ERROR_KEY] = None
                 st.session_state["sim_log_messages"] = []
 
+                # Sauvegarder les modèles et règles sélectionnés avant la simulation.
+                st.session_state["_cfg_saved_gen_models"] = list(
+                    st.session_state.get("gen_models_select", cfg.get("generative_models", []))
+                )
+                st.session_state["_cfg_saved_rule_codes"] = list(
+                    cfg.get("rule_codes", [])
+                )
+
                 tmp_path = write_temp_toml(cfg, base_dir=st.session_state.get("cfg_base_dir"))
                 st.session_state["sim_tmp_toml"] = tmp_path
 
@@ -404,6 +426,7 @@ def render_tab_simulation() -> None:
                 add_script_run_ctx(t, get_script_run_ctx())
                 t.start()
                 st.session_state[_SIM_THREAD_KEY] = t
+                st.session_state["_sim_final_rerun_done"] = False
                 st.rerun()
 
     with col_cancel:
@@ -419,19 +442,32 @@ def render_tab_simulation() -> None:
     # -----------------------------------------------------------------------
     # Feedback
     # -----------------------------------------------------------------------
-    _render_sim_feedback()
+    if st.session_state.get(_SIM_RUNNING_KEY) or st.session_state.get(_SIM_DONE_KEY):
+        _render_sim_feedback()
 
 
+@st.fragment(run_every=1)
 def _render_sim_feedback() -> None:
-    """Affiche barre de progression et logs pour la simulation."""
-    is_running: bool = st.session_state[_SIM_RUNNING_KEY]
-    is_done: bool = st.session_state[_SIM_DONE_KEY]
-    error: str | None = st.session_state[_SIM_ERROR_KEY]
-    progress_tuple: tuple = st.session_state[_SIM_PROGRESS_KEY]
+    """Fragment Streamlit (run_every=1 s) — seule cette zone se ré-exécute pendant
+    la simulation, sans retoucher les onglets Données/Configuration ni leurs widgets.
+    Un unique rerun complet est déclenché à la fin pour rafraîchir l'état global.
+    """
+    is_running: bool = st.session_state.get(_SIM_RUNNING_KEY, False)
+    is_done: bool = st.session_state.get(_SIM_DONE_KEY, False)
+    error: str | None = st.session_state.get(_SIM_ERROR_KEY)
+    progress_tuple: tuple = st.session_state.get(_SIM_PROGRESS_KEY, (0, 0))
 
+    # Drain log queue into persistent list
     new_msgs = _drain_log_queue()
     if new_msgs:
         st.session_state["sim_log_messages"].extend(new_msgs)
+
+    # Detect thread finished but flag not yet updated
+    if is_running:
+        thread: threading.Thread | None = st.session_state.get(_SIM_THREAD_KEY)
+        if thread is not None and not thread.is_alive():
+            st.session_state[_SIM_RUNNING_KEY] = False
+            is_running = False
 
     current, total = progress_tuple
     if total > 0:
@@ -471,12 +507,9 @@ def _render_sim_feedback() -> None:
                 f"Résultats disponibles dans l'onglet Résultats."
             )
 
-    if is_running:
-        thread: threading.Thread | None = st.session_state[_SIM_THREAD_KEY]
-        if thread is not None and thread.is_alive():
-            with st.spinner("Simulation en cours…"):
-                time.sleep(1.0)
-            st.rerun()
-        else:
-            st.session_state[_SIM_RUNNING_KEY] = False
+    # Unique rerun complet à la fin — met à jour le statut global et les boutons.
+    if is_done and not is_running:
+        if not st.session_state.get("_sim_final_rerun_done", False):
+            st.session_state["_sim_final_rerun_done"] = True
+            st.session_state["_cfg_post_run_restore"] = True  # restaure gen_models
             st.rerun()
