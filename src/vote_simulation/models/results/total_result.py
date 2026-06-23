@@ -546,7 +546,9 @@ class SimulationTotalResult:
 
         if save_path is not None:
             fig = ax.figure
-            assert isinstance(fig, plt.Figure)
+            from matplotlib.figure import Figure
+
+            assert isinstance(fig, Figure)
             os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
             fig.savefig(save_path)
         if show:
@@ -641,7 +643,9 @@ class SimulationTotalResult:
 
         if save_path is not None:
             fig = ax.figure
-            assert isinstance(fig, plt.Figure)
+            from matplotlib.figure import Figure
+
+            assert isinstance(fig, Figure)
             os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
             fig.savefig(save_path)
         if show:
@@ -922,7 +926,9 @@ class SimulationTotalResult:
 
         if save_path is not None:
             fig = ax.figure
-            assert isinstance(fig, plt.Figure)
+            from matplotlib.figure import Figure
+
+            assert isinstance(fig, Figure)
             os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
             fig.savefig(save_path)
         if show:

@@ -181,7 +181,7 @@ def _run_simulation(config_path: str, stop_event: threading.Event, log_q: queue.
             super().__init__(*args, **kwargs)
             self._last_st_update: float = 0.0
 
-        def update(self, n: int = 1) -> bool | None:
+        def update(self, n: float | int = 1) -> bool | None:
             self.n += n
             if stop_event.is_set():
                 self.close()
