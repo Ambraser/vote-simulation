@@ -115,7 +115,7 @@ def _run_full(
     _ctx = mp.get_context(_MP_CONTEXT)
     mp_queue: mp.Queue = _ctx.Queue()
     mp_stop: object = _ctx.Event()
-    proc = _ctx.Process(
+    proc = _ctx.Process(  # type: ignore[attr-defined]
         target=simulation_worker,
         args=(config_path, reload, mp_queue, mp_stop),
         daemon=True,
@@ -299,9 +299,7 @@ def _render_global_bar() -> None:
             st.session_state["_cfg_saved_gen_models"] = list(
                 st.session_state.get("gen_models_select", cfg.get("generative_models", []))
             )
-            st.session_state["_cfg_saved_rule_codes"] = list(
-                cfg.get("rule_codes", [])
-            )
+            st.session_state["_cfg_saved_rule_codes"] = list(cfg.get("rule_codes", []))
 
             stop_event = threading.Event()
             log_q: queue.Queue = queue.Queue()

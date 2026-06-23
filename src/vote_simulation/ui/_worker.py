@@ -47,7 +47,7 @@ def simulation_worker(
 
     original_tqdm = _sim_module.tqdm
 
-    class _ProcTqdm(original_tqdm):  # type: ignore[misc]
+    class _ProcTqdm(original_tqdm):
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             kwargs["file"] = io.StringIO()
             super().__init__(*args, **kwargs)

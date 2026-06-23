@@ -295,9 +295,7 @@ def render_tab_simulation() -> None:
                 if st.button(f"Tout — {family_label}", key=f"sel_all_{family_id}"):
                     existing_ordered = cfg.get("rule_codes", [])
                     existing_set = set(existing_ordered)
-                    cfg["rule_codes"] = existing_ordered + [
-                        c for c in codes_in_family if c not in existing_set
-                    ]
+                    cfg["rule_codes"] = existing_ordered + [c for c in codes_in_family if c not in existing_set]
                     st.session_state[f"rules_family_{family_id}"] = codes_in_family
                     st.rerun()
             with fc2:
@@ -411,9 +409,7 @@ def render_tab_simulation() -> None:
                 st.session_state["_cfg_saved_gen_models"] = list(
                     st.session_state.get("gen_models_select", cfg.get("generative_models", []))
                 )
-                st.session_state["_cfg_saved_rule_codes"] = list(
-                    cfg.get("rule_codes", [])
-                )
+                st.session_state["_cfg_saved_rule_codes"] = list(cfg.get("rule_codes", []))
 
                 tmp_path = write_temp_toml(cfg, base_dir=st.session_state.get("cfg_base_dir"))
                 st.session_state["sim_tmp_toml"] = tmp_path
