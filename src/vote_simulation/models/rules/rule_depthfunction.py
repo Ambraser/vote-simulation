@@ -149,9 +149,7 @@ class DepthFunctionResult(SvvampRuleWrapper):
         winner_indices = np.array(sorted(winner_set), dtype=int)
         return best_depth_for, winner_indices
 
-    # ------------------------------------------------------------------
     # Greedy approximation (large n_c)
-    # ------------------------------------------------------------------
 
     def _greedy(self, p: np.ndarray, n_c: int) -> tuple[np.ndarray, np.ndarray]:
         """Greedy depth approximation for larger profiles.

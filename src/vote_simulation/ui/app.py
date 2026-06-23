@@ -19,14 +19,15 @@ import copy
 import hashlib
 import multiprocessing as mp
 import queue
+import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any
 
 import streamlit as st
 from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ctx
 
+from vote_simulation.ui._worker import simulation_worker
 from vote_simulation.ui.tab_config import render_tab_config
 from vote_simulation.ui.tab_generation import _parse_int_list, render_tab_generation
 from vote_simulation.ui.tab_results import render_tab_results
@@ -89,65 +90,13 @@ def _init_session() -> None:
 # Run complet — Génération + Simulation enchaînées
 # ---------------------------------------------------------------------------
 
-
-def _simulation_target(
-    config_path: str,
-    reload: bool,
-    mp_queue: mp.Queue[tuple],
-    mp_stop: Any,
-) -> None:
-    """Exécuté dans un sous-processus forké — GIL propre, sans concurrence Streamlit.
-
-    Patche le tqdm du module simulation pour émettre des messages de progression
-    via mp_queue. Les tqdms internes (disable=True) restent des no-ops.
-    Envoie enfin ("done", result) ou ("error", msg).
-    """
-    import io
-
-    import vote_simulation.simulation.simulation as _sim_module
-    from vote_simulation.simulation.simulation import simulation_series_from_config_2
-
-    original_tqdm = _sim_module.tqdm
-
-    class _ProcTqdm(original_tqdm):
-        def __init__(self, *args, **kwargs) -> None:
-            kwargs["file"] = io.StringIO()
-            super().__init__(*args, **kwargs)
-
-        def update(self, n: int = 1) -> bool | None:
-            if self.disable:
-                return None
-            self.n += n
-            if mp_stop.is_set():
-                self.close()
-                raise InterruptedError("Annulé")
-            total = self.total or 0
-            mp_queue.put(("progress", min(self.n, total), total))
-            return None
-
-    _sim_module.tqdm = _ProcTqdm  # type: ignore[assignment]
-    try:
-        result = simulation_series_from_config_2(config_path, reload=reload, compute_metrics=True)
-        # Serialize via a temp file instead of the queue (avoids mp queue size limits
-        # and multiprocessing pickle overhead for large numpy-heavy objects).
-        import os
-        import pickle
-        import tempfile
-
-        try:
-            fd, tmp_path = tempfile.mkstemp(suffix=".pkl", prefix="vote_sim_result_")
-            with os.fdopen(fd, "wb") as fh:
-                pickle.dump(result, fh, protocol=pickle.HIGHEST_PROTOCOL)
-            mp_queue.put(("done_file", tmp_path))
-        except Exception:
-            # Fallback: results are already on disk; main process will re-read them.
-            mp_queue.put(("done", None))
-    except InterruptedError as exc:
-        mp_queue.put(("cancelled", str(exc)))
-    except Exception as exc:
-        mp_queue.put(("error", str(exc)))
-    finally:
-        _sim_module.tqdm = original_tqdm
+# On POSIX (Linux / macOS) we use "fork": the child inherits the parent's
+# memory, which is fast and avoids re-importing the whole application.
+# On Windows only "spawn" is available: Python starts a fresh interpreter
+# and imports the worker function from its module path.  simulation_worker
+# lives in vote_simulation.ui._worker (a plain importable module, not inside
+# the Streamlit script) so it is safely picklable under spawn.
+_MP_CONTEXT: str = "fork" if sys.platform != "win32" else "spawn"
 
 
 def _run_full(
@@ -163,11 +112,11 @@ def _run_full(
     performances d'exécution d'un notebook — sans aucune modification du code
     de simulation lui-même.
     """
-    _ctx = mp.get_context("fork")
+    _ctx = mp.get_context(_MP_CONTEXT)
     mp_queue: mp.Queue = _ctx.Queue()
     mp_stop: object = _ctx.Event()
-    proc = _ctx.Process(
-        target=_simulation_target,
+    proc = _ctx.Process(  # type: ignore[attr-defined]
+        target=simulation_worker,
         args=(config_path, reload, mp_queue, mp_stop),
         daemon=True,
     )
@@ -346,6 +295,12 @@ def _render_global_bar() -> None:
             for _k in [k for k in st.session_state if k.startswith("_scan_struct_")]:
                 del st.session_state[_k]
 
+            # Sauvegarder gen_models_select et rule_codes pour restauration après le run.
+            st.session_state["_cfg_saved_gen_models"] = list(
+                st.session_state.get("gen_models_select", cfg.get("generative_models", []))
+            )
+            st.session_state["_cfg_saved_rule_codes"] = list(cfg.get("rule_codes", []))
+
             stop_event = threading.Event()
             log_q: queue.Queue = queue.Queue()
             st.session_state["full_run_stop"] = stop_event
@@ -485,6 +440,7 @@ def _render_full_run_feedback() -> None:
     if is_done and not is_running:
         if not st.session_state.get("_full_run_final_rerun_done", False):
             st.session_state["_full_run_final_rerun_done"] = True
+            st.session_state["_cfg_post_run_restore"] = True  # restaure gen_models
             st.rerun()  # rerun complet (hors fragment) — une seule fois
 
 
@@ -522,14 +478,10 @@ def _sync_cfg_from_widgets() -> None:
 
     # Voters / Candidates (text_input → parsing)
     if "gen_voters_input" in st.session_state:
-        parsed = _parse_int_list(st.session_state["gen_voters_input"])
-        if parsed:
-            cfg["voters"] = parsed
+        cfg["voters"] = _parse_int_list(st.session_state["gen_voters_input"])
 
     if "gen_candidates_input" in st.session_state:
-        parsed = _parse_int_list(st.session_state["gen_candidates_input"])
-        if parsed:
-            cfg["candidates"] = parsed
+        cfg["candidates"] = _parse_int_list(st.session_state["gen_candidates_input"])
 
     # Iterations (slider)
     if "gen_iterations_slider" in st.session_state:
@@ -543,10 +495,20 @@ def _sync_cfg_from_widgets() -> None:
     # pour éviter d'écraser une config chargée via TOML avant le premier rendu.
     rule_keys = [f"rules_family_{fid}" for _, fid in _FAMILIES]
     if any(k in st.session_state for k in rule_keys):
-        aggregated: list[str] = []
+        # Build new selection in family order (for detecting newly added rules)
+        new_family_order: list[str] = []
         for key in rule_keys:
-            aggregated.extend(st.session_state.get(key, []))
-        cfg["rule_codes"] = aggregated
+            new_family_order.extend(st.session_state.get(key, []))
+        # Preserve custom order: keep existing order, append newly added rules at end
+        new_set = set(new_family_order)
+        old_ordered = cfg.get("rule_codes", [])
+        preserved: list[str] = [r for r in old_ordered if r in new_set]
+        preserved_set = set(preserved)
+        for r in new_family_order:
+            if r not in preserved_set:
+                preserved.append(r)
+                preserved_set.add(r)
+        cfg["rule_codes"] = preserved
 
 
 def _refresh_active_toml() -> None:
@@ -607,6 +569,37 @@ def _refresh_active_toml() -> None:
 
 def main() -> None:
     _init_session()
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Restauration de l'état des widgets après un run complet/simulation.
+    #
+    # Problème : quand le fragment (@st.fragment run_every=1) déclenche
+    # st.rerun(), Streamlit réconcilie l'état WebSocket du navigateur (qui
+    # n'a pas été mis à jour pendant les reruns fragmentaires) avec le
+    # session_state serveur. La valeur "froide" du navigateur pour le
+    # multiselect gen_models_select peut écraser la valeur serveur,
+    # supprimant les modèles ajoutés entre deux runs.
+    # Solution : sauvegarder gen_models_select avant chaque run et le
+    # restaurer ici, avant _sync_cfg_from_widgets, sur le rerun final.
+    # ────────────────────────────────────────────────────────────────────────
+    if st.session_state.pop("_cfg_post_run_restore", False):
+        _cfg_now = st.session_state.get("cfg")
+        saved_models = st.session_state.pop("_cfg_saved_gen_models", None)
+        if saved_models is not None and not st.session_state.get("_cfg_gen_needs_sync"):
+            # Force le multiselect à afficher les modèles sauvegardés.
+            st.session_state["gen_models_select"] = saved_models
+            if _cfg_now is not None:
+                _cfg_now["generative_models"] = saved_models
+        saved_rules = st.session_state.pop("_cfg_saved_rule_codes", None)
+        if saved_rules is not None and not st.session_state.get("_cfg_rules_needs_sync"):
+            # Restaurer les règles dans cfg et dans chaque widget rules_family_*.
+            if _cfg_now is not None:
+                _cfg_now["rule_codes"] = saved_rules
+            saved_set = set(saved_rules)
+            for _, fid in _FAMILIES:
+                key = f"rules_family_{fid}"
+                if key in st.session_state:
+                    st.session_state[key] = [r for r in st.session_state[key] if r in saved_set]
 
     # Pré-synchroniser cfg depuis les widgets pour que l'aperçu TOML de tab_config
     # reflète immédiatement chaque modification dans les onglets Données et Simulation.

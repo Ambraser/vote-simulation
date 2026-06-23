@@ -16,6 +16,7 @@ L'état UI est un dict plat avec les clés suivantes :
 from __future__ import annotations
 
 import copy
+import os
 import queue
 import tempfile
 import tomllib
@@ -183,8 +184,10 @@ def _parse_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
 # Default state
 # ---------------------------------------------------------------------------
 
+_DEFAULT_OUTPUT_BASE_PATH = os.environ.get("VOTE_SIM_OUTPUT_BASE_PATH", "").strip()
+
 DEFAULT_STATE: dict[str, Any] = {
-    "output_base_path": "",
+    "output_base_path": _DEFAULT_OUTPUT_BASE_PATH,
     "seed": None,
     "generative_models": [],
     "rule_codes": [],

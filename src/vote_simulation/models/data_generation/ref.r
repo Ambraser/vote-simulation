@@ -68,4 +68,6 @@ eval_ddd_beta_polar <- function(nb_candidats, nb_electeurs, K = 1) {
 }
 
 
+
+
 #Ces deux générations de données par evaluation couvre une large zone du cube indice evaluation

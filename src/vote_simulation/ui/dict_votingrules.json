@@ -39,6 +39,7 @@
     "DEPF": "Depth Function",
     "AP_T": "Approval Voting (threshold = 0.7, alias)",
     "AP_T0": "Approval Voting (threshold = 0, utility > 0)",
+    "AP_T0GE": "Approval Voting (threshold = 0, utility ≥ 0)",
     "AP_T05": "Approval Voting (threshold = 0.5, utility > 0.5)",
     "AP_T05GE": "Approval Voting (threshold = 0.5, utility ≥ 0.5)",
     "AP_T06": "Approval Voting (threshold = 0.6)",

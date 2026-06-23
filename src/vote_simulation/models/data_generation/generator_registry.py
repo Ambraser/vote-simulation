@@ -260,7 +260,7 @@ def _build_spheroid(
     **_kw: object,
 ) -> Profile:
     _seed(seed, iteration)
-    gen = GeneratorProfileSpheroid(n_v=n_v, n_c=n_c, stretching=stretching)
+    gen = GeneratorProfileSpheroid(n_v=n_v, n_c=n_c, stretching=int(stretching))
     return _relabel(gen(), n_c)
 
 
@@ -357,7 +357,7 @@ def _build_vmf_hypersphere(
         n_v=n_v,
         n_c=n_c,
         vmf_concentration=vmf_concentration,
-        stretching=stretching,
+        stretching=int(stretching),
         vmf_probability=vmf_probability,
         vmf_pole=vmf_pole,
     )
