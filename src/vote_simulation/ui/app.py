@@ -86,6 +86,29 @@ def _init_session() -> None:
         st.session_state["_full_run_final_rerun_done"] = False
 
 
+def _project_cfg_to_widgets(cfg: dict) -> None:
+    """Projecte explicitement cfg vers les clés widget sensibles aux valeurs stale."""
+    st.session_state["cfg_output_base_path"] = cfg.get("output_base_path") or ""
+    seed_val = cfg.get("seed")
+    st.session_state["cfg_seed"] = int(seed_val) if seed_val is not None else None
+    st.session_state["gen_voters_input"] = ", ".join(str(v) for v in cfg.get("voters", []))
+    st.session_state["gen_candidates_input"] = ", ".join(str(c) for c in cfg.get("candidates", []))
+    st.session_state["gen_iterations_slider"] = int(cfg.get("iterations", 1000))
+
+    # Ces widgets sont reconstruits depuis cfg dans l'onglet Simulation.
+    for key in ("sim_data_source", "sim_input_folder"):
+        st.session_state.pop(key, None)
+
+    # Purger les clés dynamiques pour forcer value=/cfg au prochain render.
+    for key in list(st.session_state.keys()):
+        if isinstance(key, str) and (key.startswith("rules_family_") or key.startswith("gp_")):
+            del st.session_state[key]
+
+    # Les multiselects se synchronisent en début d'onglet via ces flags.
+    st.session_state["_cfg_gen_needs_sync"] = True
+    st.session_state["_cfg_rules_needs_sync"] = True
+
+
 # ---------------------------------------------------------------------------
 # Run complet — Génération + Simulation enchaînées
 # ---------------------------------------------------------------------------
@@ -295,10 +318,9 @@ def _render_global_bar() -> None:
             for _k in [k for k in st.session_state if k.startswith("_scan_struct_")]:
                 del st.session_state[_k]
 
-            # Sauvegarder gen_models_select et rule_codes pour restauration après le run.
-            st.session_state["_cfg_saved_gen_models"] = list(
-                st.session_state.get("gen_models_select", cfg.get("generative_models", []))
-            )
+            # Sauvegarder l'état source de vérité (cfg) pour restauration après run.
+            st.session_state["_cfg_saved_snapshot"] = copy.deepcopy(cfg)
+            st.session_state["_cfg_saved_gen_models"] = list(cfg.get("generative_models", []))
             st.session_state["_cfg_saved_rule_codes"] = list(cfg.get("rule_codes", []))
 
             stop_event = threading.Event()
@@ -473,7 +495,9 @@ def _sync_cfg_from_widgets() -> None:
         cfg["seed"] = int(val) if val is not None else None
 
     # Modèles génératifs
-    if "gen_models_select" in st.session_state:
+    # Si une resynchronisation depuis cfg est demandée, on n'écrase pas cfg
+    # avec un état navigateur potentiellement stale sur ce rerun.
+    if not st.session_state.get("_cfg_gen_needs_sync", False) and "gen_models_select" in st.session_state:
         cfg["generative_models"] = list(st.session_state["gen_models_select"])
 
     # Voters / Candidates (text_input → parsing)
@@ -494,7 +518,7 @@ def _sync_cfg_from_widgets() -> None:
     # On ne touche à rule_codes que si au moins une clé de famille existe,
     # pour éviter d'écraser une config chargée via TOML avant le premier rendu.
     rule_keys = [f"rules_family_{fid}" for _, fid in _FAMILIES]
-    if any(k in st.session_state for k in rule_keys):
+    if (not st.session_state.get("_cfg_rules_needs_sync", False)) and any(k in st.session_state for k in rule_keys):
         # Build new selection in family order (for detecting newly added rules)
         new_family_order: list[str] = []
         for key in rule_keys:
@@ -583,27 +607,28 @@ def main() -> None:
     # restaurer ici, avant _sync_cfg_from_widgets, sur le rerun final.
     # ────────────────────────────────────────────────────────────────────────
     if st.session_state.pop("_cfg_post_run_restore", False):
+        # Restaurer l'état cfg capturé au lancement du run : protège contre
+        # tout reset/écrasement intervenu pendant les reruns fragmentaires.
+        saved_snapshot = st.session_state.pop("_cfg_saved_snapshot", None)
+        if saved_snapshot is not None:
+            st.session_state["cfg"] = copy.deepcopy(saved_snapshot)
+
         _cfg_now = st.session_state.get("cfg")
-        saved_models = st.session_state.pop("_cfg_saved_gen_models", None)
-        if saved_models is not None and not st.session_state.get("_cfg_gen_needs_sync"):
-            # Force le multiselect à afficher les modèles sauvegardés.
-            st.session_state["gen_models_select"] = saved_models
-            if _cfg_now is not None:
-                _cfg_now["generative_models"] = saved_models
-        saved_rules = st.session_state.pop("_cfg_saved_rule_codes", None)
-        if saved_rules is not None and not st.session_state.get("_cfg_rules_needs_sync"):
-            # Restaurer les règles dans cfg et dans chaque widget rules_family_*.
-            if _cfg_now is not None:
-                _cfg_now["rule_codes"] = saved_rules
-            saved_set = set(saved_rules)
-            for _, fid in _FAMILIES:
-                key = f"rules_family_{fid}"
-                if key in st.session_state:
-                    st.session_state[key] = [r for r in st.session_state[key] if r in saved_set]
+        st.session_state.pop("_cfg_saved_gen_models", None)
+        st.session_state.pop("_cfg_saved_rule_codes", None)
+
+        if _cfg_now is not None:
+            _project_cfg_to_widgets(_cfg_now)
+            # Sur ce rerun précis, on bloque la synchro widgets->cfg pour éviter
+            # qu'une valeur navigateur stale ré-écrase le cfg courant.
+            st.session_state["_skip_widget_sync_once"] = True
 
     # Pré-synchroniser cfg depuis les widgets pour que l'aperçu TOML de tab_config
     # reflète immédiatement chaque modification dans les onglets Données et Simulation.
-    _sync_cfg_from_widgets()
+    if st.session_state.pop("_skip_widget_sync_once", False):
+        pass
+    else:
+        _sync_cfg_from_widgets()
 
     # Maintenir le fichier TOML temp à jour et le libellé "TOML actif".
     _refresh_active_toml()

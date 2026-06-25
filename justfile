@@ -24,6 +24,10 @@ qa:
     uv run --python=3.13 ty check --output-format=concise .
     uv run --python=3.13 pytest .
 
+# Run the Streamlit UI locally
+ui *ARGS:
+    uv run --python=3.13 vote-sim-ui {{ARGS}}
+
 # Run all the tests for all the supported Python versions
 testall:
     uv run --python=3.12 pytest

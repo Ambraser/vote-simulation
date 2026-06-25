@@ -318,7 +318,7 @@ class SimulationSeriesResult:
         from sklearn.manifold import MDS
 
         distance_matrix = self.mean_distance_matrix
-        mds = MDS(n_components=2, metric="precomputed", random_state=42, normalized_stress="auto", n_init="random")
+        mds = MDS(n_components=2, metric="precomputed", random_state=42, normalized_stress="auto", n_init=4)
         coords = mds.fit_transform(distance_matrix)
         return MdsProjection(coords=coords, stress=float(mds.stress_))
 
@@ -341,7 +341,7 @@ class SimulationSeriesResult:
         from sklearn.manifold import MDS
 
         distance_matrix = self.mean_distance_matrix
-        mds = MDS(n_components=3, metric="precomputed", random_state=42, normalized_stress="auto", n_init="random")
+        mds = MDS(n_components=3, metric="precomputed", random_state=42, normalized_stress="auto", n_init=4)
         coords = mds.fit_transform(distance_matrix)
         return MdsProjection(coords=coords, stress=float(mds.stress_))
 

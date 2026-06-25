@@ -314,6 +314,25 @@ class TestPlotting:
             )
             assert os.path.isfile(path)
 
+    def test_plot_mean_distance_matrix_title_shows_averaged_voters(self) -> None:
+        total = SimulationTotalResult()
+        total.add_series(_make_series("UNI", 10, 3))
+        total.add_series(_make_series("UNI", 20, 3))
+        total.add_series(_make_series("UNI", 50, 3))
+
+        ax = total.filter(gen_model="UNI", n_candidates=3).plot_mean_distance_matrix(show=False)
+        assert "n_votants=avg(10,20,50)" in ax.get_title()
+
+    def test_plot_mean_distance_matrix_save_basename(self, tmp_path) -> None:
+        total = _make_total_4().filter(gen_model="UNI")
+        previous_cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            total.plot_mean_distance_matrix(show=False, save_path="mean_matrix.png")
+            assert os.path.isfile("mean_matrix.png")
+        finally:
+            os.chdir(previous_cwd)
+
 
 # ------------------------------------------------------------------
 # Persistence

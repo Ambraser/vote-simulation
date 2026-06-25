@@ -442,11 +442,18 @@ class SimulationTotalResult:
 
         # Build title
         n_series = self.series_count
+        def _avg_label(name: str, values: list[int], *, max_items: int = 7) -> str:
+            shown = ",".join(str(v) for v in values[:max_items])
+            suffix = ",..." if len(values) > max_items else ""
+            return f"{name}=avg({shown}{suffix})"
+
         parts: list[str] = []
         if len(self.gen_models) == 1:
             parts.append(self.gen_models[0])
         if len(self.voter_counts) == 1:
-            parts.append(f"n_voters={self.voter_counts[0]}")
+            parts.append(f"n_votants={self.voter_counts[0]}")
+        elif self.voter_counts:
+            parts.append(_avg_label("n_votants", self.voter_counts))
         if len(self.candidate_counts) == 1:
             parts.append(f"n_candidates={self.candidate_counts[0]}")
         desc = " · ".join(parts) if parts else f"{n_series} series averaged"

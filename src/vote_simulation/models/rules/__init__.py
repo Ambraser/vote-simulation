@@ -23,6 +23,9 @@ from vote_simulation.models.rules import (
 from vote_simulation.models.rules import (
     rule_k_approval as _rule_k_approval,  # noqa: F401  # type: ignore[reportUnusedImport]
 )
+from vote_simulation.models.rules import (
+    rule_k_random_poisson_approval as _rule_k_random_poisson_approval,  # noqa: F401  # type: ignore[reportUnusedImport]
+)
 from vote_simulation.models.rules import rule_kemeny as _rule_kemeny  # noqa: F401  # type: ignore[reportUnusedImport]
 from vote_simulation.models.rules import (
     rule_kim_roush as _rule_kim_roush,  # noqa: F401  # type: ignore[reportUnusedImport]

@@ -7,6 +7,7 @@ dans un thread séparé avec suivi de progression.
 
 from __future__ import annotations
 
+import copy
 import json
 import queue
 import sys
@@ -405,10 +406,9 @@ def render_tab_simulation() -> None:
                 st.session_state[_SIM_ERROR_KEY] = None
                 st.session_state["sim_log_messages"] = []
 
-                # Sauvegarder les modèles et règles sélectionnés avant la simulation.
-                st.session_state["_cfg_saved_gen_models"] = list(
-                    st.session_state.get("gen_models_select", cfg.get("generative_models", []))
-                )
+                # Sauvegarder l'état source de vérité (cfg), pas le widget brut.
+                st.session_state["_cfg_saved_snapshot"] = copy.deepcopy(cfg)
+                st.session_state["_cfg_saved_gen_models"] = list(cfg.get("generative_models", []))
                 st.session_state["_cfg_saved_rule_codes"] = list(cfg.get("rule_codes", []))
 
                 tmp_path = write_temp_toml(cfg, base_dir=st.session_state.get("cfg_base_dir"))

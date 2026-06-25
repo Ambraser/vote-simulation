@@ -69,8 +69,10 @@ def _plot_heatmap(
     if show:
         plt.show()
     if save_path is not None:
-        # check if the directory exists, create it if not
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        # Handle plain filenames (no directory component) gracefully.
+        save_dir = os.path.dirname(save_path)
+        if save_dir:
+            os.makedirs(save_dir, exist_ok=True)
         plt.savefig(save_path)
 
     return ax

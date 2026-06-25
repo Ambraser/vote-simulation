@@ -10,6 +10,7 @@ __pycache__/
 #CHANGELOG/
 data/
 demo/results/
+all_sim/
 
 # Distribution / packaging
 build/
