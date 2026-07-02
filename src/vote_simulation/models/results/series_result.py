@@ -132,7 +132,7 @@ class SimulationSeriesResult:
                 n_iterations=self._config.n_iterations,
             )
 
-    def filter_rules(self, rule_codes: list[str]) -> "SimulationSeriesResult":
+    def filter_rules(self, rule_codes: list[str]) -> SimulationSeriesResult:
         """Return a new series restricted to the specified rule codes.
 
         Only the accumulator state is copied — ``steps`` are not included in
@@ -475,9 +475,7 @@ class SimulationSeriesResult:
         ax = _plot_rules_3d_scatter(projection.coords, self._rule_order, title, ax, show=show, save_path=resolved)
 
         if resolved is not None:
-            self.save_to_file(
-                os.path.join(os.path.dirname(resolved), f"{self._iteration_count}_series.parquet")
-            )
+            self.save_to_file(os.path.join(os.path.dirname(resolved), f"{self._iteration_count}_series.parquet"))
 
         return ax
 
@@ -511,9 +509,7 @@ class SimulationSeriesResult:
         ax = _plot_rules_2d_scatter(projection.coords, self._rule_order, title, ax, show=show, save_path=resolved)
 
         if resolved is not None:
-            self.save_to_file(
-                os.path.join(os.path.dirname(resolved), f"{self._iteration_count}_series.parquet")
-            )
+            self.save_to_file(os.path.join(os.path.dirname(resolved), f"{self._iteration_count}_series.parquet"))
 
         return ax
 

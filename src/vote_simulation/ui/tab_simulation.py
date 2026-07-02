@@ -244,17 +244,19 @@ def _invalidate_results_cache(base_path: str) -> None:
         if key in {"gf_m_applied", "gf_v_applied", "gf_c_applied"}:
             del st.session_state[key]
             continue
-        if key.startswith((
-            "_res_total_",
-            "_scan_struct_",
-            "_filtered_",
-            "_series_",
-            "_total_one_",
-            "_plt_",
-            "_avail_rules_",
-            "_g_dist_df_",
-            "_g_met_df_",
-        )):
+        if key.startswith(
+            (
+                "_res_total_",
+                "_scan_struct_",
+                "_filtered_",
+                "_series_",
+                "_total_one_",
+                "_plt_",
+                "_avail_rules_",
+                "_g_dist_df_",
+                "_g_met_df_",
+            )
+        ):
             if base_path in key or key.startswith("_plt_"):
                 del st.session_state[key]
 

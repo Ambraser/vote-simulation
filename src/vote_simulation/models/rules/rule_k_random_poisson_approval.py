@@ -14,8 +14,8 @@ from __future__ import annotations
 import numpy as np
 from svvamp import Profile
 
-from vote_simulation.models.rules.registry import RuleInput, RuleResult, _ensure_profile, register_rule
 from vote_simulation.models.rules.base import SvvampRuleWrapper
+from vote_simulation.models.rules.registry import RuleInput, RuleResult, _ensure_profile, register_rule
 
 
 def _sample_k_poisson_per_voter(profile: Profile) -> np.ndarray:

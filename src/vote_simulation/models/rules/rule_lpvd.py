@@ -122,8 +122,8 @@ def _build_lpvd(*, p: float = 4):
     return builder
 
 
-register_rule("L1DV", _build_lpvd(p=1))  # L1 mean 
-register_rule("L2DV", _build_lpvd(p=2))  # L2 mean 
+register_rule("L1DV", _build_lpvd(p=1))  # L1 mean
+register_rule("L2DV", _build_lpvd(p=2))  # L2 mean
 register_rule("L3DV", _build_lpvd(p=3))  # L3 mean
 register_rule("L4DV", _build_lpvd(p=4))  # L4 mean
 register_rule("L5DV", _build_lpvd(p=5))  # L5 mean

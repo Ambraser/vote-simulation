@@ -71,7 +71,11 @@ def _plot_heatmap(
         save_dir = os.path.dirname(save_path)
         if save_dir:
             os.makedirs(save_dir, exist_ok=True)
-        ax.figure.savefig(save_path, dpi=150, bbox_inches="tight")
+        import matplotlib.figure as _mpl_fig
+
+        _fig = ax.figure
+        if isinstance(_fig, _mpl_fig.Figure):
+            _fig.savefig(save_path, dpi=150, bbox_inches="tight")
     if show:
         plt.show()
 

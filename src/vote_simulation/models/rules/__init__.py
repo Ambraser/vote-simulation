@@ -7,8 +7,10 @@ from vote_simulation.models.rules import (
 from vote_simulation.models.rules import rule_baldwin as _rule_baldwin  # noqa: F401  # type: ignore[reportUnusedImport]
 from vote_simulation.models.rules import rule_black as _rule_black  # noqa: F401  # type: ignore[reportUnusedImport]
 from vote_simulation.models.rules import rule_borda as _rule_borda  # noqa: F401  # type: ignore[reportUnusedImport]
-from vote_simulation.models.rules import rule_condorcet as _rule_condorcet  # noqa: F401  # type: ignore[reportUnusedImport]
 from vote_simulation.models.rules import rule_bucklin as _rule_bucklin  # noqa: F401  # type: ignore[reportUnusedImport]
+from vote_simulation.models.rules import (
+    rule_condorcet as _rule_condorcet,  # noqa: F401  # type: ignore[reportUnusedImport]
+)
 from vote_simulation.models.rules import rule_coombs as _rule_coombs  # noqa: F401  # type: ignore[reportUnusedImport]
 from vote_simulation.models.rules import (
     rule_copeland as _rule_copeland,  # noqa: F401  # type: ignore[reportUnusedImport]

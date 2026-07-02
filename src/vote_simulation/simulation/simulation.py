@@ -58,7 +58,9 @@ def _series_cache_meta_path(cache_path: Path) -> Path:
     return cache_path.with_suffix(".meta.json")
 
 
-def _build_series_cache_meta(*, seed: int, extra_params: dict[str, object] | None, compute_metrics: bool) -> dict[str, object]:
+def _build_series_cache_meta(
+    *, seed: int, extra_params: dict[str, object] | None, compute_metrics: bool
+) -> dict[str, object]:
     """Build a stable metadata payload for validating series cache reuse."""
     return {
         "version": 1,

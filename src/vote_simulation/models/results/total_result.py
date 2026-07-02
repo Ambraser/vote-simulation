@@ -205,7 +205,7 @@ class SimulationTotalResult:
             result._entries[key] = series
         return result
 
-    def filter_rules(self, rule_codes: list[str]) -> "SimulationTotalResult":
+    def filter_rules(self, rule_codes: list[str]) -> SimulationTotalResult:
         """Return a new instance where every series is restricted to *rule_codes*.
 
         Applies
@@ -505,7 +505,11 @@ class SimulationTotalResult:
             raise ValueError("No valid metric data to export.")
 
         columns = [f"{field}_{stat}" for field in fields]
-        return pd.DataFrame(raw.T, index=pd.Index(all_rules, name="rule"), columns=columns)
+        return pd.DataFrame(
+            raw.T,
+            index=pd.Index(np.asarray(all_rules, dtype=object), name="rule"),
+            columns=pd.Index(np.asarray(columns, dtype=object)),
+        )
 
     def export_mean_distance_matrix_csv(self, save_path: str) -> str:
         """Export :meth:`mean_distance_matrix_frame` to CSV."""
@@ -563,6 +567,7 @@ class SimulationTotalResult:
 
         # Build title
         n_series = self.series_count
+
         def _avg_label(name: str, values: list[int], *, max_items: int = 7) -> str:
             shown = ",".join(str(v) for v in values[:max_items])
             suffix = ",..." if len(values) > max_items else ""
@@ -1336,6 +1341,7 @@ class SimulationTotalResult:
 
     def _build_plot_desc(self) -> str:
         """Build a human-readable description of current parameter values for plot titles."""
+
         def _avg_label(name: str, values: list[int], *, max_items: int = 7) -> str:
             shown = ",".join(str(v) for v in values[:max_items])
             suffix = ",..." if len(values) > max_items else ""

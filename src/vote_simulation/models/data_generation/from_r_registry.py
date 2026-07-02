@@ -85,7 +85,16 @@ def _get_r_env() -> Any:
 # Shared conversion helper
 
 
-def _r_matrix_to_profile(r_func_name: str, n_v: int, n_c: int, effective_seed: int, alpha_min: float = 0.0, alpha_max: float = 3.0, beta_min: float = 0.0, beta_max: float = 3.0) -> Profile:
+def _r_matrix_to_profile(
+    r_func_name: str,
+    n_v: int,
+    n_c: int,
+    effective_seed: int,
+    alpha_min: float = 0.0,
+    alpha_max: float = 3.0,
+    beta_min: float = 0.0,
+    beta_max: float = 3.0,
+) -> Profile:
     """Call an R generator function and return an svvamp Profile.
 
     The R functions return a list of length K; we always request K=1 and
@@ -171,10 +180,10 @@ _REG_LOCK = threading.Lock()
 
 _DDD_BETA_VARIANTS: list[tuple[str, float]] = [
     ("DDD_BETA_0-05", 0.05),
-    ("DDD_BETA_0-5",  0.5),
-    ("DDD_BETA_1",    1.0),
-    ("DDD_BETA_2",    2.0),
-    ("DDD_BETA_5",    5.0),
+    ("DDD_BETA_0-5", 0.5),
+    ("DDD_BETA_1", 1.0),
+    ("DDD_BETA_2", 2.0),
+    ("DDD_BETA_5", 5.0),
 ]
 
 

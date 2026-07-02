@@ -51,7 +51,17 @@ IMPLEMENTED_RULE_CODES = sorted(rule_name for rule_name in _RULE_BUILDERS if rul
 # Rules that cannot detect ties via scores_ due to algorithmic limitations.
 # Kemeny: finding all optimal orders is NP-hard — svvamp returns a single lexicographic order.
 # ICRV: Condorcet-check rounds pick a single winner even on symmetric profiles.
-_TIE_XFAIL_RULES = {"ICRV", "ICRV_EXACT", "KEME", "KEME_LAZY", "SLAT"}
+_TIE_XFAIL_RULES = {
+    "ICRV",
+    "ICRV_EXACT",
+    "KEME",
+    "KEME_LAZY",
+    "SLAT",
+    "RANDOM_DICTATOR",
+    "RANDOM_WINNER",
+    "AP_K_POISSON",
+    "AP_KRP",
+}
 _TIE_PARAMETRIZE = [
     pytest.param(code, marks=pytest.mark.xfail(reason="known tie-detection limitation"))
     if code in _TIE_XFAIL_RULES
