@@ -1,9 +1,13 @@
 """R-based data generators using rpy2.
 
-Registers two generators derived from ``ref.r``:
+Registers six generators derived from ``ref.r``:
 
-* ``DDD_BETA``      - ``eval_ddd_beta``       (Beta marginals, random a/b in [eps, 3])
-* ``DDD_BETA_POLAR``- ``eval_ddd_beta_polar``  (Polarised Beta, a=b in [eps, 0.5])
+* ``DDD_BETA_0-05``  - ``eval_ddd_beta``  (Beta marginals, alpha & beta in [eps, 0.05])
+* ``DDD_BETA_0-5``   - ``eval_ddd_beta``  (Beta marginals, alpha & beta in [eps, 0.5])
+* ``DDD_BETA_1``     - ``eval_ddd_beta``  (Beta marginals, alpha & beta in [eps, 1.0])
+* ``DDD_BETA_2``     - ``eval_ddd_beta``  (Beta marginals, alpha & beta in [eps, 2.0])
+* ``DDD_BETA_5``     - ``eval_ddd_beta``  (Beta marginals, alpha & beta in [eps, 5.0])
+* ``DDD_BETA_POLAR`` - ``eval_ddd_beta_polar`` (Polarised Beta, a=b in [eps, 0.5])
 
 The R environment and the script are loaded **once** at first use so that
 repeated calls do not pay the R startup cost.
@@ -17,6 +21,7 @@ Usage:
 
 from __future__ import annotations
 
+import functools
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -80,7 +85,7 @@ def _get_r_env() -> Any:
 # Shared conversion helper
 
 
-def _r_matrix_to_profile(r_func_name: str, n_v: int, n_c: int, effective_seed: int) -> Profile:
+def _r_matrix_to_profile(r_func_name: str, n_v: int, n_c: int, effective_seed: int, alpha_min: float = 0.0, alpha_max: float = 3.0, beta_min: float = 0.0, beta_max: float = 3.0) -> Profile:
     """Call an R generator function and return an svvamp Profile.
 
     The R functions return a list of length K; we always request K=1 and
@@ -91,7 +96,7 @@ def _r_matrix_to_profile(r_func_name: str, n_v: int, n_c: int, effective_seed: i
     r = _get_r_env()
     r["set.seed"](effective_seed % (2**31))
     r_func: Any = r[r_func_name]
-    result: Any = r_func(n_c, n_v, 1)  # K=1
+    result: Any = r_func(n_c, n_v, 1, alpha_min, alpha_max, beta_min, beta_max)  # K=1
     # result is an R list; extract first element → R matrix (n_c × n_v)
     phi_r: Any = result[0]
     # Convert to numpy: rpy2 flattens column-major → reshape then transpose
@@ -112,12 +117,16 @@ def _build_ddd_beta(
     *,
     seed: int = 0,
     iteration: int = 0,
+    alpha_min: float = 0.0,
+    alpha_max: float = 3.0,
+    beta_min: float = 0.0,
+    beta_max: float = 3.0,
     **_kw: object,
 ) -> Profile:
-    """Beta marginals; a, b drawn uniformly in [eps, 3] per candidate."""
+    """Beta marginals; a, b drawn uniformly per candidate."""
     effective = seed * 100_000 + iteration
     _seed(seed, iteration)
-    return _r_matrix_to_profile("eval_ddd_beta", n_v, n_c, effective)
+    return _r_matrix_to_profile("eval_ddd_beta", n_v, n_c, effective, alpha_min, alpha_max, beta_min, beta_max)
 
 
 def _build_ddd_beta_polar(
@@ -128,16 +137,45 @@ def _build_ddd_beta_polar(
     iteration: int = 0,
     **_kw: object,
 ) -> Profile:
-    """Polarised Beta marginals; a=b drawn uniformly in [eps, 0.5] per candidate."""
+    """Polarised Beta marginals; a=b drawn uniformly in [eps, 0.5] per candidate.
+
+    The R function eval_ddd_beta_polar has no alpha/beta range parameters —
+    bounds are hardcoded in R as [eps, 0.5].  Any alpha/beta kwargs passed
+    through generator_params are silently ignored via **_kw.
+    """
     effective = seed * 100_000 + iteration
     _seed(seed, iteration)
-    return _r_matrix_to_profile("eval_ddd_beta_polar", n_v, n_c, effective)
+    # Call R with exactly (nb_candidats, nb_electeurs, K) — no extra args.
+    r = _get_r_env()
+    r["set.seed"](effective % (2**31))
+    r_func: Any = r["eval_ddd_beta_polar"]
+    result: Any = r_func(n_c, n_v, 1)
+    phi_r: Any = result[0]
+    phi_np: np.ndarray = np.array(phi_r).reshape((n_c, n_v), order="F")
+    preferences_ut = phi_np.T
+    return Profile(
+        preferences_ut=preferences_ut,
+        labels_candidates=_make_labels(n_c),
+    )
 
 
 # Registration
 
 _REGISTERED = False
 _REG_LOCK = threading.Lock()
+
+
+# ---------------------------------------------------------------------------
+# Per-variant builder factories
+# ---------------------------------------------------------------------------
+
+_DDD_BETA_VARIANTS: list[tuple[str, float]] = [
+    ("DDD_BETA_0-05", 0.05),
+    ("DDD_BETA_0-5",  0.5),
+    ("DDD_BETA_1",    1.0),
+    ("DDD_BETA_2",    2.0),
+    ("DDD_BETA_5",    5.0),
+]
 
 
 def register_r_generators() -> None:
@@ -148,7 +186,21 @@ def register_r_generators() -> None:
     with _REG_LOCK:
         if _REGISTERED:
             return
-        register_generator("DDD_BETA", _build_ddd_beta)
+
+        # One DDD_BETA variant per alpha/beta range [0, max].
+        # alpha_min / beta_min stay at 0 (clamped to eps inside R).
+        for code, upper in _DDD_BETA_VARIANTS:
+            register_generator(
+                code,
+                functools.partial(
+                    _build_ddd_beta,
+                    alpha_min=0.0,
+                    alpha_max=upper,
+                    beta_min=0.0,
+                    beta_max=upper,
+                ),
+            )
+
         register_generator("DDD_BETA_POLAR", _build_ddd_beta_polar)
         _REGISTERED = True
 

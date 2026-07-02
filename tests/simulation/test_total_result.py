@@ -265,6 +265,32 @@ class TestMetrics:
         df = total.rule_pair_frame("PLU1", "NONEXISTENT")
         assert df["distance"].isna().all()
 
+    def test_mean_distance_matrix_frame_returns_dataframe(self) -> None:
+        total = _make_total_4().filter(gen_model="UNI")
+        frame = total.mean_distance_matrix_frame()
+        assert list(frame.index) == list(frame.columns)
+        assert frame.shape[0] >= 2
+
+    def test_export_mean_distance_matrix_csv(self) -> None:
+        total = _make_total_4().filter(gen_model="UNI")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "mean_distance.csv")
+            out = total.export_mean_distance_matrix_csv(path)
+            assert out == path
+            assert os.path.isfile(path)
+            loaded = np.genfromtxt(path, delimiter=",", dtype=str)
+            assert loaded.shape[0] > 1
+
+    def test_export_metrics_rules_matrix_csv(self) -> None:
+        total = _make_total_4().filter(gen_model="UNI")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "metrics.csv")
+            out = total.export_metrics_rules_matrix_csv(path)
+            assert out == path
+            assert os.path.isfile(path)
+            loaded = np.genfromtxt(path, delimiter=",", dtype=str)
+            assert loaded.shape[0] > 1
+
 
 # ------------------------------------------------------------------
 # Plotting
@@ -323,6 +349,15 @@ class TestPlotting:
         ax = total.filter(gen_model="UNI", n_candidates=3).plot_mean_distance_matrix(show=False)
         assert "n_votants=avg(10,20,50)" in ax.get_title()
 
+    def test_plot_mean_distance_matrix_title_shows_averaged_candidates(self) -> None:
+        total = SimulationTotalResult()
+        total.add_series(_make_series("UNI", 100, 3))
+        total.add_series(_make_series("UNI", 100, 5))
+        total.add_series(_make_series("UNI", 100, 8))
+
+        ax = total.filter(gen_model="UNI", n_voters=100).plot_mean_distance_matrix(show=False)
+        assert "n_candidates=avg(3,5,8)" in ax.get_title()
+
     def test_plot_mean_distance_matrix_save_basename(self, tmp_path) -> None:
         total = _make_total_4().filter(gen_model="UNI")
         previous_cwd = os.getcwd()
@@ -330,6 +365,7 @@ class TestPlotting:
         try:
             total.plot_mean_distance_matrix(show=False, save_path="mean_matrix.png")
             assert os.path.isfile("mean_matrix.png")
+            assert os.path.getsize("mean_matrix.png") > 0
         finally:
             os.chdir(previous_cwd)
 

@@ -5,6 +5,7 @@ import matplotlib
 import numpy as np
 
 from vote_simulation.models.results.series_result import ResultConfig, SimulationSeriesResult, SimulationStepResult
+from vote_simulation.models.rules.winner_metrics import WinnerMetrics
 
 matplotlib.use("Agg")
 
@@ -133,6 +134,47 @@ def test_series_plot_mean_distance_matrix_returns_axes() -> None:
 
     assert "Mean rule distance matrix" in ax.get_title()
     assert ax.get_aspect() == 1.0
+
+
+def test_series_export_mean_distance_matrix_csv(tmp_path) -> None:
+    series = SimulationSeriesResult()
+    step = SimulationStepResult(data_source="x.parquet")
+    step.add_method_result("BORDA", ["A"])
+    step.add_method_result("STV", ["B"])
+    series.add_step(step)
+
+    out = series.export_mean_distance_matrix_csv(str(tmp_path))
+    assert os.path.isfile(out)
+    loaded = np.genfromtxt(out, delimiter=",", dtype=str)
+    assert loaded.shape[0] > 1
+
+
+def test_series_export_metrics_summary_csv(tmp_path) -> None:
+    series = SimulationSeriesResult()
+    step = SimulationStepResult(data_source="x.parquet")
+    step.add_method_result_with_metrics(
+        "BORDA",
+        ["A"],
+        WinnerMetrics(
+            social_acceptability=0.5,
+            utility_mean=0.2,
+            utility_median=0.2,
+            utility_var=0.0,
+            rank_mean=1.0,
+            rank_median=1.0,
+            rank_var=0.0,
+            freq_first=1.0,
+            freq_last=0.0,
+            has_tie=False,
+            n_cowinners=1,
+        ),
+    )
+    series.add_step(step)
+
+    out = series.export_metrics_summary_csv(str(tmp_path))
+    assert os.path.isfile(out)
+    loaded = np.genfromtxt(out, delimiter=",", dtype=str)
+    assert loaded.shape[0] > 1
 
 
 # ======================================================================

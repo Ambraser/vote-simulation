@@ -16,6 +16,7 @@ TIE_PROFILE = TIE_DATA_INSTANCE.profile
 TIE_COWINNERS = list(TIE_DATA_INSTANCE.candidates)
 
 EXPECTED_REFERENCE_COWINNERS = [
+    ("COND", [str(label) for label in REFERENCE_PROFILE.labels_candidates]),
     ("COPE", ["Candidate 1", "Candidate 4"]),
     ("DODG_S", []),
     ("BALD", ["Candidate 4"]),

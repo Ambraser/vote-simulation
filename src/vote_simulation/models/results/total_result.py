@@ -35,7 +35,14 @@ import numpy as np
 import pandas as pd
 
 from vote_simulation.models.results.series_result import SimulationSeriesResult
-from vote_simulation.models.results.utils import _plot_heatmap
+from vote_simulation.models.results.utils import (
+    MdsProjection,
+    _mds_project,
+    _plot_heatmap,
+    _plot_rules_2d_scatter,
+    _plot_rules_3d_scatter,
+    _save_figure,
+)
 from vote_simulation.models.rules.winner_metrics import METRIC_FIELDS
 
 # ------------------------------------------------------------------
@@ -196,6 +203,28 @@ class SimulationTotalResult:
             if n_candidates is not None and key.n_candidates != n_candidates:
                 continue
             result._entries[key] = series
+        return result
+
+    def filter_rules(self, rule_codes: list[str]) -> "SimulationTotalResult":
+        """Return a new instance where every series is restricted to *rule_codes*.
+
+        Applies
+        :meth:`~vote_simulation.models.results.series_result.SimulationSeriesResult.filter_rules`
+        to each stored series.  Entries whose filtered version contains no
+        rules are dropped.  Series keys are preserved.
+
+        Args:
+            rule_codes: Rule codes to keep across all series.  Unknown or
+                absent codes are silently ignored per series.
+
+        Returns:
+            A new :class:`SimulationTotalResult` with filtered series.
+        """
+        result = SimulationTotalResult()
+        for key, series in self._entries.items():
+            filtered = series.filter_rules(rule_codes)
+            if filtered.step_count > 0:
+                result._entries[key] = filtered
         return result
 
     # ------------------------------------------------------------------
@@ -385,6 +414,119 @@ class SimulationTotalResult:
             )
         return pd.DataFrame(rows)
 
+    def mean_distance_matrix_frame(self) -> pd.DataFrame:
+        """Mean rule-distance matrix averaged across all series as a DataFrame."""
+        if not self._entries:
+            raise ValueError("No series in this result.")
+
+        # Collect all rule labels (union, preserving first-seen order)
+        all_rules: list[str] = []
+        rule_index: dict[str, int] = {}
+        for series in self._entries.values():
+            for rule_code in series._rule_order:
+                if rule_code not in rule_index:
+                    rule_index[rule_code] = len(all_rules)
+                    all_rules.append(rule_code)
+
+        n = len(all_rules)
+        acc = np.zeros((n, n), dtype=np.float64)
+        counts = np.zeros((n, n), dtype=np.int64)
+
+        for series in self._entries.values():
+            mat = series.mean_distance_matrix
+            if mat.size == 0:
+                continue
+            perm = np.array([rule_index[r] for r in series._rule_order], dtype=np.intp)
+            ix = np.ix_(perm, perm)
+            acc[ix] += mat.astype(np.float64)
+            counts[ix] += 1
+
+        with np.errstate(invalid="ignore"):
+            avg_matrix = np.where(counts > 0, acc / counts, np.nan)
+
+        idx = pd.Index(all_rules)
+        return pd.DataFrame(avg_matrix.astype(np.float32), index=idx, columns=idx)
+
+    def metrics_rules_matrix_frame(
+        self,
+        *,
+        stat: str = "mean",
+        metrics: list[str] | None = None,
+    ) -> pd.DataFrame:
+        """Winner-metric matrix with rules as rows and metric stats as columns."""
+        if stat not in {"mean", "std"}:
+            raise ValueError(f"Invalid stat '{stat}'. Expected 'mean' or 'std'.")
+
+        fields = list(metrics) if metrics is not None else list(METRIC_FIELDS)
+        invalid = [m for m in fields if m not in METRIC_FIELDS]
+        if invalid:
+            raise ValueError(f"Unknown metric fields: {invalid}")
+
+        all_rules: list[str] = []
+        for series in self._entries.values():
+            frame = series.metrics_summary_frame
+            if not frame.empty:
+                for rule_code in frame.index:
+                    if rule_code not in all_rules:
+                        all_rules.append(rule_code)
+
+        if not all_rules:
+            raise ValueError("No winner-metric data found. Check that metrics were computed during simulation.")
+
+        n_m = len(fields)
+        n_r = len(all_rules)
+        sums = np.zeros((n_m, n_r), dtype=np.float64)
+        counts = np.zeros((n_m, n_r), dtype=np.int64)
+
+        for series in self._entries.values():
+            frame = series.metrics_summary_frame
+            if frame.empty:
+                continue
+            for ri, rule_code in enumerate(all_rules):
+                if rule_code not in frame.index:
+                    continue
+                for mi, field_name in enumerate(fields):
+                    col = f"{field_name}_{stat}"
+                    if col not in frame.columns:
+                        continue
+                    val = float(frame.loc[rule_code, col])
+                    if np.isnan(val):
+                        continue
+                    sums[mi, ri] += val
+                    counts[mi, ri] += 1
+
+        with np.errstate(invalid="ignore"):
+            raw = np.where(counts > 0, sums / counts, np.nan)
+
+        valid_mask = ~np.all(np.isnan(raw), axis=1)
+        fields = [f for f, v in zip(fields, valid_mask, strict=False) if v]
+        raw = raw[valid_mask]
+        if len(fields) == 0:
+            raise ValueError("No valid metric data to export.")
+
+        columns = [f"{field}_{stat}" for field in fields]
+        return pd.DataFrame(raw.T, index=pd.Index(all_rules, name="rule"), columns=columns)
+
+    def export_mean_distance_matrix_csv(self, save_path: str) -> str:
+        """Export :meth:`mean_distance_matrix_frame` to CSV."""
+        frame = self.mean_distance_matrix_frame()
+        os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
+        frame.to_csv(save_path, index=True)
+        return save_path
+
+    def export_metrics_rules_matrix_csv(
+        self,
+        save_path: str,
+        *,
+        stat: str = "mean",
+        metrics: list[str] | None = None,
+    ) -> str:
+        """Export :meth:`metrics_rules_matrix_frame` to CSV."""
+        frame = self.metrics_rules_matrix_frame(stat=stat, metrics=metrics)
+        os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
+        frame.to_csv(save_path, index=True)
+        return save_path
+
     # ------------------------------------------------------------------
     # Plotting
     # ------------------------------------------------------------------
@@ -415,30 +557,9 @@ class SimulationTotalResult:
         if not self._entries:
             raise ValueError("No series in this result — nothing to plot.")
 
-        # Collect all rule labels (union, preserving first-seen order)
-        all_rules: list[str] = []
-        rule_index: dict[str, int] = {}
-        for series in self._entries.values():
-            for r in series._rule_order:
-                if r not in rule_index:
-                    rule_index[r] = len(all_rules)
-                    all_rules.append(r)
-
-        n = len(all_rules)
-        acc = np.zeros((n, n), dtype=np.float64)
-        counts = np.zeros((n, n), dtype=np.int64)
-
-        for series in self._entries.values():
-            mat = series.mean_distance_matrix  # float32, shape (k, k)
-            if mat.size == 0:
-                continue
-            perm = np.array([rule_index[r] for r in series._rule_order], dtype=np.intp)
-            ix = np.ix_(perm, perm)
-            acc[ix] += mat.astype(np.float64)
-            counts[ix] += 1
-
-        with np.errstate(invalid="ignore"):
-            avg_matrix = np.where(counts > 0, acc / counts, np.nan)
+        matrix_frame = self.mean_distance_matrix_frame()
+        all_rules = list(matrix_frame.index)
+        avg_matrix = matrix_frame.to_numpy(dtype=np.float64)
 
         # Build title
         n_series = self.series_count
@@ -456,6 +577,8 @@ class SimulationTotalResult:
             parts.append(_avg_label("n_votants", self.voter_counts))
         if len(self.candidate_counts) == 1:
             parts.append(f"n_candidates={self.candidate_counts[0]}")
+        elif self.candidate_counts:
+            parts.append(_avg_label("n_candidates", self.candidate_counts))
         desc = " · ".join(parts) if parts else f"{n_series} series averaged"
         title = f"Mean rule distance matrix\n{desc}"
 
@@ -552,12 +675,7 @@ class SimulationTotalResult:
         cbar.set_label(metric.replace("_", " ").title())
 
         if save_path is not None:
-            fig = ax.figure
-            from matplotlib.figure import Figure
-
-            assert isinstance(fig, Figure)
-            os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
-            fig.savefig(save_path)
+            _save_figure(ax.figure, save_path)
         if show:
             plt.show()
 
@@ -649,12 +767,7 @@ class SimulationTotalResult:
         cbar.set_label("Mean distance (%)")
 
         if save_path is not None:
-            fig = ax.figure
-            from matplotlib.figure import Figure
-
-            assert isinstance(fig, Figure)
-            os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
-            fig.savefig(save_path)
+            _save_figure(ax.figure, save_path)
         if show:
             plt.show()
 
@@ -708,51 +821,12 @@ class SimulationTotalResult:
         from matplotlib.cm import ScalarMappable
         from matplotlib.colors import Normalize
 
-        fields = list(metrics) if metrics is not None else list(METRIC_FIELDS)
-
-        # Collect per-rule means across all series
-        # Discover all rules present in any series
-        all_rules: list[str] = []
-        for series in self._entries.values():
-            frame = series.metrics_summary_frame
-            if not frame.empty:
-                for r in frame.index:
-                    if r not in all_rules:
-                        all_rules.append(r)
-
-        if not all_rules:
-            raise ValueError("No winner-metric data found. Check that metrics were computed during simulation.")
-
-        # Build raw matrix: shape (n_metrics, n_rules)
-        # Average over all series
-        n_m = len(fields)
+        matrix_frame = self.metrics_rules_matrix_frame(stat=stat, metrics=metrics)
+        all_rules = list(matrix_frame.index)
+        field_cols = list(matrix_frame.columns)
+        fields = [col.removesuffix(f"_{stat}") for col in field_cols]
+        raw = matrix_frame.to_numpy(dtype=np.float64).T
         n_r = len(all_rules)
-        raw = np.full((n_m, n_r), np.nan)
-
-        for s_idx, series in enumerate(self._entries.values()):
-            frame = series.metrics_summary_frame
-            if frame.empty:
-                continue
-            for ri, rule in enumerate(all_rules):
-                if rule not in frame.index:
-                    continue
-                for mi, f_name in enumerate(fields):
-                    col = f"{f_name}_{stat}"
-                    if col not in frame.columns:
-                        continue
-                    val = float(frame.loc[rule, col])
-                    if np.isnan(raw[mi, ri]):
-                        raw[mi, ri] = val
-                    else:
-                        raw[mi, ri] = (raw[mi, ri] * s_idx + val) / (s_idx + 1)
-
-        # Drop metric rows that are entirely NaN
-        valid_mask = ~np.all(np.isnan(raw), axis=1)
-        fields = [f for f, v in zip(fields, valid_mask, strict=False) if v]
-        raw = raw[valid_mask]
-
-        if len(fields) == 0:
-            raise ValueError("No valid metric data to plot.")
 
         # Row-normalise: each row scaled to [0, 1]
         row_min = np.nanmin(raw, axis=1, keepdims=True)
@@ -932,12 +1006,7 @@ class SimulationTotalResult:
         cbar.set_label(f"{metric_field.replace('_', ' ').title()} ({stat})")
 
         if save_path is not None:
-            fig = ax.figure
-            from matplotlib.figure import Figure
-
-            assert isinstance(fig, Figure)
-            os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
-            fig.savefig(save_path)
+            _save_figure(ax.figure, save_path)
         if show:
             plt.show()
         return ax
@@ -1036,6 +1105,102 @@ class SimulationTotalResult:
         if show:
             plt.show()
         return axes
+
+    def map_rules_2d(self) -> MdsProjection:
+        """Project rules into 2D using Multi-Dimensional Scaling (MDS).
+
+        Uses the global mean distance matrix (averaged over all series) as a
+        precomputed dissimilarity matrix.
+
+        Returns:
+            :class:`MdsProjection` with 2D coordinates and normalized stress.
+
+        Raises:
+            ValueError: If no series have been added yet.
+        """
+        if not self._entries:
+            raise ValueError("No series in this result.")
+        matrix = self.mean_distance_matrix_frame().to_numpy(dtype=np.float64)
+        return _mds_project(matrix, n_components=2)
+
+    def map_rules_3d(self) -> MdsProjection:
+        """Project rules into 3D using Multi-Dimensional Scaling (MDS).
+
+        Uses the global mean distance matrix (averaged over all series) as a
+        precomputed dissimilarity matrix.
+
+        Returns:
+            :class:`MdsProjection` with 3D coordinates and normalized stress.
+
+        Raises:
+            ValueError: If no series have been added yet.
+        """
+        if not self._entries:
+            raise ValueError("No series in this result.")
+        matrix = self.mean_distance_matrix_frame().to_numpy(dtype=np.float64)
+        return _mds_project(matrix, n_components=3)
+
+    def plot_rules_2d(
+        self,
+        ax: Any | None = None,
+        *,
+        show: bool = True,
+        save_path: str | None = None,
+    ) -> Any:
+        """Plot rules as labeled points in a 2D MDS projection.
+
+        Distances between points approximate the global mean pairwise rule
+        distances, averaged over all series in this result.  Use
+        :meth:`filter` to restrict the scope first.
+
+        Args:
+            ax: Optional matplotlib Axes. A new figure is created when *None*.
+            show: Whether to call ``plt.show()`` at the end.
+            save_path: Optional file path to save the figure.
+
+        Returns:
+            The matplotlib Axes used for plotting.
+        """
+        if not self._entries:
+            raise ValueError("No series in this result — nothing to plot.")
+        projection = self.map_rules_2d()
+        labels = list(self.mean_distance_matrix_frame().index)
+        desc = self._build_plot_desc()
+        title = f"Rule proximity map\n{desc}"
+        if save_path is not None:
+            os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
+        return _plot_rules_2d_scatter(projection.coords, labels, title, ax, show=show, save_path=save_path)
+
+    def plot_rules_3d(
+        self,
+        ax: Any | None = None,
+        *,
+        show: bool = True,
+        save_path: str | None = None,
+    ) -> Any:
+        """Plot rules as labeled points in a 3D MDS projection.
+
+        Distances between points approximate the global mean pairwise rule
+        distances, averaged over all series in this result.  Use
+        :meth:`filter` to restrict the scope first.
+
+        Args:
+            ax: Optional matplotlib 3D Axes. A new figure is created when *None*.
+            show: Whether to call ``plt.show()`` at the end.
+            save_path: Optional file path to save the figure.
+
+        Returns:
+            The matplotlib Axes used for plotting.
+        """
+        if not self._entries:
+            raise ValueError("No series in this result — nothing to plot.")
+        projection = self.map_rules_3d()
+        labels = list(self.mean_distance_matrix_frame().index)
+        desc = self._build_plot_desc()
+        title = f"Rule proximity map (3D)\n{desc}\nMDS stress: {projection.stress:.4f}"
+        if save_path is not None:
+            os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
+        return _plot_rules_3d_scatter(projection.coords, labels, title, ax, show=show, save_path=save_path)
 
     def plot_comparison_grid(
         self,
@@ -1168,6 +1333,26 @@ class SimulationTotalResult:
             return False
 
     # Private helpers
+
+    def _build_plot_desc(self) -> str:
+        """Build a human-readable description of current parameter values for plot titles."""
+        def _avg_label(name: str, values: list[int], *, max_items: int = 7) -> str:
+            shown = ",".join(str(v) for v in values[:max_items])
+            suffix = ",..." if len(values) > max_items else ""
+            return f"{name}=avg({shown}{suffix})"
+
+        parts: list[str] = []
+        if len(self.gen_models) == 1:
+            parts.append(self.gen_models[0])
+        if len(self.voter_counts) == 1:
+            parts.append(f"n_votants={self.voter_counts[0]}")
+        elif self.voter_counts:
+            parts.append(_avg_label("n_votants", self.voter_counts))
+        if len(self.candidate_counts) == 1:
+            parts.append(f"n_candidates={self.candidate_counts[0]}")
+        elif self.candidate_counts:
+            parts.append(_avg_label("n_candidates", self.candidate_counts))
+        return " \u00b7 ".join(parts) if parts else f"{self.series_count} series averaged"
 
     @staticmethod
     def _validate_axis_params(row_param: str, col_param: str) -> None:
