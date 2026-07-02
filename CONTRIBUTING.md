@@ -8,7 +8,7 @@ You can contribute in many ways:
 
 ### Report Bugs
 
-Report bugs at https://github.com/Damidas0/vote_simulation/issues.
+Report bugs at https://github.com/Ambraser/vote_simulation/issues.
 
 If you are reporting a bug, please include:
 
