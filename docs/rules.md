@@ -15,6 +15,7 @@ All rules expose a `cowinners_` attribute. They are integrated via the `rule_cod
 | BUCK_R | Bucklin | [rule_bucklin](https://francois-durand.github.io/svvamp/reference/rules/rule_bucklin.html) | Tested & validated |
 | CAIR | Condorcet Abs IRV | [rule_condorcet_abs_irv](https://francois-durand.github.io/svvamp/reference/rules/rule_condorcet_abs_irv.html) | Tested & validated |
 | COOM | Coombs | [rule_coombs](https://francois-durand.github.io/svvamp/reference/rules/rule_coombs.html) | Tested & validated |
+| COND | Condorcet | — | Tested & validated |
 | COPE | Copeland | [rule_copeland](https://francois-durand.github.io/svvamp/reference/rules/rule_copeland.html) | Tested & validated |
 | CSUM | Condorcet Sum Defeats | [rule_condorcet_sum_defeats](https://francois-durand.github.io/svvamp/reference/rules/rule_condorcet_sum_defeats.html) | Tested & validated |
 | CVIR | Condorcet Vtb IRV | [rule_condorcet_vtb_irv](https://francois-durand.github.io/svvamp/reference/rules/rule_condorcet_vtb_irv.html) | Tested & validated |

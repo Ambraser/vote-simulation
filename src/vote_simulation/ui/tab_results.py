@@ -484,6 +484,25 @@ def render_tab_results() -> None:
         tag = f"{sel_model}_v{sel_voters}_c{sel_cands}"
         st.success(f"**{series.step_count} itérations** · **{len(rules)} règles** : {', '.join(rules)}")
 
+        # ── Filtre de règles ─────────────────────────────────────────────────
+        sel_rules_s = st.multiselect(
+            "Règles à afficher",
+            options=rules,
+            default=rules,
+            key=f"rule_sel_s_{tag}",
+        )
+        _active_rules_s = sel_rules_s if sel_rules_s else rules
+        if _active_rules_s != rules:
+            _series_view_key = f"_series_view_{tag}_{'_'.join(sorted(_active_rules_s))}"
+            if _series_view_key not in st.session_state:
+                st.session_state[_series_view_key] = series.filter_rules(_active_rules_s)
+            series_v = st.session_state[_series_view_key]
+            view_tag = f"{tag}_r{'_'.join(sorted(_active_rules_s))}"
+        else:
+            series_v = series
+            view_tag = tag
+        view_rules = series_v.mean_distance_matrix_frame.columns.tolist() if series_v.step_count > 0 else []
+
         s_tabs = st.tabs(
             [
                 "Matrice de distance",
@@ -501,36 +520,36 @@ def render_tab_results() -> None:
                 "0 = toujours d'accord · 100 = jamais"
             )
             _cached_plot(
-                f"_plt_dist_{tag}",
-                lambda: series.plot_mean_distance_matrix(show=False),
-                f"dl_dist_{tag}",
-                f"dist_{tag}.png",
+                f"_plt_dist_{view_tag}",
+                lambda: series_v.plot_mean_distance_matrix(show=False),
+                f"dl_dist_{view_tag}",
+                f"dist_{view_tag}.png",
             )
 
         # ── Projection 2D ──────────────────────────────────────────────────
         with s_tabs[1]:
-            if len(rules) < 3:
+            if len(view_rules) < 3:
                 st.info("Au moins 3 règles nécessaires pour la projection 2D.")
             else:
                 st.caption("`series.plot_rules_2d()` — distances projetées par MDS")
                 _cached_plot(
-                    f"_plt_2d_{tag}",
-                    lambda: series.plot_rules_2d(show=False),
-                    f"dl_2d_{tag}",
-                    f"mds2d_{tag}.png",
+                    f"_plt_2d_{view_tag}",
+                    lambda: series_v.plot_rules_2d(show=False),
+                    f"dl_2d_{view_tag}",
+                    f"mds2d_{view_tag}.png",
                 )
 
         # ── Projection 3D ──────────────────────────────────────────────────
         with s_tabs[2]:
-            if len(rules) < 4:
+            if len(view_rules) < 4:
                 st.info("Au moins 4 règles nécessaires pour la projection 3D.")
             else:
                 st.caption("`series.plot_rules_3d()` — distances projetées par MDS 3D")
                 _cached_plot(
-                    f"_plt_3d_{tag}",
-                    lambda: series.plot_rules_3d(show=False),
-                    f"dl_3d_{tag}",
-                    f"mds3d_{tag}.png",
+                    f"_plt_3d_{view_tag}",
+                    lambda: series_v.plot_rules_3d(show=False),
+                    f"dl_3d_{view_tag}",
+                    f"mds3d_{view_tag}.png",
                 )
 
         # ── Métriques des gagnants ──────────────────────────────────────────
@@ -538,7 +557,7 @@ def render_tab_results() -> None:
             from vote_simulation.models.results.total_result import SimulationTotalResult as _STR
             from vote_simulation.models.rules.winner_metrics import METRIC_FIELDS as _MF
 
-            msf = series.metrics_summary_frame
+            msf = series_v.metrics_summary_frame
             if msf.empty:
                 st.info(
                     "Les métriques des gagnants ne sont pas disponibles pour cette série.\n\n"
@@ -546,12 +565,12 @@ def render_tab_results() -> None:
                     "(onglet Configuration → bouton **Run complet**)."
                 )
             else:
-                # Enveloppe la série dans un SimulationTotalResult pour utiliser
+                # Enveloppe la série filtrée dans un SimulationTotalResult pour utiliser
                 # plot_metrics_rules_matrix
-                _total_one_key = f"_total_one_{tag}"
+                _total_one_key = f"_total_one_{view_tag}"
                 if _total_one_key not in st.session_state:
                     _t1 = _STR()
-                    _t1.add_series(series)
+                    _t1.add_series(series_v)
                     st.session_state[_total_one_key] = _t1
                 _total_one = st.session_state[_total_one_key]
 
@@ -561,54 +580,54 @@ def render_tab_results() -> None:
                     "Métriques à afficher",
                     options=avail_mf,
                     default=avail_mf,
-                    key=f"sm_mf_{tag}",
+                    key=f"sm_mf_{view_tag}",
                 )
-                stat_sm = mc2.radio("Statistique", ["mean", "std"], horizontal=True, key=f"sm_stat_{tag}")
+                stat_sm = mc2.radio("Statistique", ["mean", "std"], horizontal=True, key=f"sm_stat_{view_tag}")
                 if not sel_mf_sm:
                     st.info("Sélectionnez au moins une métrique.")
                 else:
-                    _sm_key = f"_plt_sm_{tag}_{sorted(sel_mf_sm)}_{stat_sm}"
+                    _sm_key = f"_plt_sm_{view_tag}_{sorted(sel_mf_sm)}_{stat_sm}"
                     _cached_plot(
                         _sm_key,
                         lambda _m=sel_mf_sm, _s=stat_sm: _total_one.plot_metrics_rules_matrix(
                             metrics=_m, stat=_s, show=False
                         ),
-                        f"dl_sm_{tag}",
-                        f"metrics_{tag}.png",
+                        f"dl_sm_{view_tag}",
+                        f"metrics_{view_tag}.png",
                     )
 
                     st.dataframe(
                         msf.style.format("{:.4f}").background_gradient(cmap="Blues", axis=0),
                         width="stretch",
                     )
-                    _df_csv_export(msf, f"dl_csv_sm_{tag}", f"metrics_{tag}.csv")
+                    _df_csv_export(msf, f"dl_csv_sm_{view_tag}", f"metrics_{view_tag}.csv")
 
         # ── Résumé ─────────────────────────────────────────────────────────
         with s_tabs[4]:
             ca, cb = st.columns(2)
-            ca.metric("Distance moyenne", f"{series.mean_distance:.2f} %")
-            ra, rb, d = series.most_distant_rules
+            ca.metric("Distance moyenne", f"{series_v.mean_distance:.2f} %")
+            ra, rb, d = series_v.most_distant_rules
             if ra:
                 cb.metric("Paire la + distante", f"{ra} ↔ {rb}", f"{d:.2f} %")
 
             st.markdown("**Matrice de distance** (`mean_distance_matrix_frame`)")
             st.dataframe(
-                series.mean_distance_matrix_frame.style.background_gradient(cmap="Reds", vmin=0, vmax=100).format(
+                series_v.mean_distance_matrix_frame.style.background_gradient(cmap="Reds", vmin=0, vmax=100).format(
                     "{:.1f}"
                 ),
                 width="stretch",
             )
             _df_csv_export(
-                series.mean_distance_matrix_frame,
-                f"dl_csv_dist_{tag}",
-                f"distance_matrix_{tag}.csv",
+                series_v.mean_distance_matrix_frame,
+                f"dl_csv_dist_{view_tag}",
+                f"distance_matrix_{view_tag}.csv",
             )
 
-            msf = series.metrics_summary_frame
+            msf = series_v.metrics_summary_frame
             if not msf.empty:
                 st.markdown("**Métriques des gagnants** (`metrics_summary_frame`)")
                 st.dataframe(msf.style.format("{:.4f}"), width="stretch")
-                _df_csv_export(msf, f"dl_csv_msf_{tag}", f"metrics_{tag}.csv")
+                _df_csv_export(msf, f"dl_csv_msf_{view_tag}", f"metrics_{view_tag}.csv")
             else:
                 st.info(
                     "Les métriques des gagnants ne sont pas disponibles depuis le disque "
@@ -634,6 +653,9 @@ def render_tab_results() -> None:
                 if (
                     _k in (cache_key, _scan_key, "gf_m_applied", "gf_v_applied", "gf_c_applied")
                     or (isinstance(_k, str) and _k.startswith("_filtered_"))
+                    or (isinstance(_k, str) and _k.startswith("_rfilt_"))
+                    or (isinstance(_k, str) and _k.startswith("_all_rules_g_"))
+                    or (isinstance(_k, str) and _k.startswith("gf_r_applied_"))
                     or (isinstance(_k, str) and _k.startswith("_plt_g_"))
                     or (isinstance(_k, str) and _k.startswith("_avail_rules_"))
                     or (isinstance(_k, str) and _k.startswith("_series_"))
@@ -667,13 +689,19 @@ def render_tab_results() -> None:
                 new_cands = f_cands or list(total.candidate_counts)
                 # Invalider le cache filtré si les filtres changent
                 if new_models != applied_models or new_voters != applied_voters or new_cands != applied_cands:
-                    # Supprimer tous les caches de plots associés
+                    # Supprimer tous les caches de plots et de règles associés
                     old_fk = (
                         f"_filtered_{cache_key}_"
                         f"{sorted(applied_models)}_{sorted(applied_voters)}_{sorted(applied_cands)}"
                     )
                     for k in list(st.session_state.keys()):
-                        if (isinstance(k, str) and k.startswith("_plt_g_")) or k == old_fk:
+                        if (
+                            (isinstance(k, str) and k.startswith("_plt_g_"))
+                            or (isinstance(k, str) and k.startswith("_rfilt_"))
+                            or (isinstance(k, str) and k.startswith("_all_rules_g_"))
+                            or (isinstance(k, str) and k.startswith("gf_r_applied_"))
+                            or k == old_fk
+                        ):
                             del st.session_state[k]
                 st.session_state[_fk_models] = new_models
                 st.session_state[_fk_voters] = new_voters
@@ -691,6 +719,47 @@ def render_tab_results() -> None:
         if total_f.series_count == 0:
             st.warning("Aucune série ne correspond aux filtres.")
             return
+
+        # ── Filtre de règles (vue globale) ───────────────────────────────────
+        # Collect the union of all rule labels across the (param-)filtered total.
+        _all_rules_g_key = f"_all_rules_g_{_filter_cache_key}"
+        if _all_rules_g_key not in st.session_state:
+            _rls: list[str] = []
+            for _, _s in total_f:
+                for _r in _s._rule_order:
+                    if _r not in _rls:
+                        _rls.append(_r)
+            st.session_state[_all_rules_g_key] = sorted(_rls)
+        _all_rules_g: list[str] = st.session_state[_all_rules_g_key]
+
+        _fk_rules = f"gf_r_applied_{_filter_cache_key}"
+        _applied_rules_g = st.session_state.get(_fk_rules, _all_rules_g)
+        # Drop stale rule selections that no longer exist after a param-filter change
+        _applied_rules_g = [r for r in _applied_rules_g if r in _all_rules_g] or _all_rules_g
+
+        sel_rules_g = st.multiselect(
+            "Règles à afficher",
+            options=_all_rules_g,
+            default=_applied_rules_g,
+            key=f"gf_r_{_filter_cache_key}",
+        )
+        _active_rules_g = sel_rules_g if sel_rules_g else _all_rules_g
+        if _active_rules_g != _applied_rules_g:
+            # Invalidate rule-filtered plot caches when selection changes
+            for _k in list(st.session_state.keys()):
+                if isinstance(_k, str) and _k.startswith("_plt_g_"):
+                    del st.session_state[_k]
+            st.session_state[_fk_rules] = _active_rules_g
+
+        # Lightweight rule-filtered view — O(n_rules²) numpy copy per series
+        _rule_cache_tag = "_".join(sorted(_active_rules_g))
+        _rule_filter_key = f"_rfilt_{_filter_cache_key}_{_rule_cache_tag}"
+        if _rule_filter_key not in st.session_state:
+            if _active_rules_g == _all_rules_g:
+                st.session_state[_rule_filter_key] = total_f
+            else:
+                st.session_state[_rule_filter_key] = total_f.filter_rules(_active_rules_g)
+        total_fr: Any = st.session_state[_rule_filter_key]
 
         PARAMS = ["gen_model", "n_voters", "n_candidates"]
 
@@ -718,14 +787,14 @@ def render_tab_results() -> None:
                 "`total.plot_mean_distance_matrix()` — distance moyenne inter-règles sur toutes les séries filtrées"
             )
             _cached_plot(
-                f"_plt_g_dist_{_filter_cache_key}",
-                lambda: total_f.plot_mean_distance_matrix(show=False),
+                f"_plt_g_dist_{_rule_filter_key}",
+                lambda: total_fr.plot_mean_distance_matrix(show=False),
                 "dl_g_dist",
                 "global_distance_matrix.png",
             )
-            _g_dist_df_key = f"_g_dist_df_{_filter_cache_key}"
+            _g_dist_df_key = f"_g_dist_df_{_rule_filter_key}"
             if _g_dist_df_key not in st.session_state:
-                st.session_state[_g_dist_df_key] = _build_global_dist_df(total_f)
+                st.session_state[_g_dist_df_key] = _build_global_dist_df(total_fr)
             _g_dist_df = st.session_state[_g_dist_df_key]
             if not _g_dist_df.empty:
                 st.markdown("**Matrice de distance moyenne** (%)")
@@ -755,14 +824,14 @@ def render_tab_results() -> None:
                 st.info("Sélectionnez au moins une métrique.")
             else:
                 _cached_plot(
-                    f"_plt_g_gm_{_filter_cache_key}_{sorted(sel_gm)}_{stat_gm}",
-                    lambda _m=sel_gm, _s=stat_gm: total_f.plot_metrics_rules_matrix(metrics=_m, stat=_s, show=False),
+                    f"_plt_g_gm_{_rule_filter_key}_{sorted(sel_gm)}_{stat_gm}",
+                    lambda _m=sel_gm, _s=stat_gm: total_fr.plot_metrics_rules_matrix(metrics=_m, stat=_s, show=False),
                     "dl_gm_matrix",
                     "metrics_rules_matrix.png",
                 )
-                _g_met_df_key = f"_g_met_df_{_filter_cache_key}_{sorted(sel_gm)}_{stat_gm}"
+                _g_met_df_key = f"_g_met_df_{_rule_filter_key}_{sorted(sel_gm)}_{stat_gm}"
                 if _g_met_df_key not in st.session_state:
-                    st.session_state[_g_met_df_key] = _build_global_metrics_df(total_f, metrics=sel_gm, stat=stat_gm)
+                    st.session_state[_g_met_df_key] = _build_global_metrics_df(total_fr, metrics=sel_gm, stat=stat_gm)
                 _g_met_df = st.session_state[_g_met_df_key]
                 if not _g_met_df.empty:
                     st.markdown("**Données brutes** (règles × métriques)")
@@ -784,12 +853,12 @@ def render_tab_results() -> None:
             hc1, hc2 = st.columns(2)
             row_p = hc1.selectbox("Axe lignes", PARAMS, index=0, key="hm_row")
             col_p = hc2.selectbox("Axe colonnes", [p for p in PARAMS if p != row_p], index=0, key="hm_col")
-            total_for_hm = _third_param_filter(total_f, row_p, col_p, "hm")
+            total_for_hm = _third_param_filter(total_fr, row_p, col_p, "hm")
             # Utilise la valeur sélectionnée du 3ème param comme discriminant de cache
             # (len(_entries) ne suffit pas : deux valeurs différentes peuvent avoir le même count)
             _hm_third_tag = st.session_state.get("hm_third", "")
             _cached_plot(
-                f"_plt_g_hm_{_filter_cache_key}_{row_p}_{col_p}_{_hm_third_tag}",
+                f"_plt_g_hm_{_rule_filter_key}_{row_p}_{col_p}_{_hm_third_tag}",
                 lambda _rp=row_p, _cp=col_p: total_for_hm.plot_metric_heatmap(
                     row_param=_rp, col_param=_cp, metric="mean_distance", show=False
                 ),
@@ -804,8 +873,8 @@ def render_tab_results() -> None:
             )
             vary_p = st.selectbox("Paramètre à faire varier", PARAMS, index=2, key="grid_vary")
             _cached_plot(
-                f"_plt_g_grid_{_filter_cache_key}_{vary_p}",
-                lambda _vp=vary_p: total_f.plot_comparison_grid(vary_param=_vp, show=False),
+                f"_plt_g_grid_{_rule_filter_key}_{vary_p}",
+                lambda _vp=vary_p: total_fr.plot_comparison_grid(vary_param=_vp, show=False),
                 "dl_g_grid",
                 "comparison_grid.png",
             )
@@ -813,12 +882,13 @@ def render_tab_results() -> None:
         # ── Paire de règles ──────────────────────────────────────────────────
         with g_tabs[5]:
             st.caption("`total.plot_rule_pair_heatmap()` — distance Jaccard entre deux règles croisée sur 2 paramètres")
-            # Cache avail_rules pour éviter d'itérer total_f à chaque rerun
-            _rules_cache_key = f"_avail_rules_{_filter_cache_key}"
+            # avail_rules comes from the rule-filtered view so the pair selector
+            # only shows rules that are currently visible.
+            _rules_cache_key = f"_avail_rules_{_rule_filter_key}"
             if _rules_cache_key not in st.session_state:
                 _rules: list[str] = []
-                for _k, _s in total_f:
-                    for _r in _s.mean_distance_matrix_frame.columns.tolist():
+                for _k, _s in total_fr:
+                    for _r in _s._rule_order:
                         if _r not in _rules:
                             _rules.append(_r)
                 st.session_state[_rules_cache_key] = sorted(_rules)
@@ -841,8 +911,8 @@ def render_tab_results() -> None:
                     key="pair_col",
                 )
                 _cached_plot(
-                    f"_plt_g_pair_{_filter_cache_key}_{rule_a}_{rule_b}_{rp_pair}_{cp_pair}",
-                    lambda _ra=rule_a, _rb=rule_b, _rp=rp_pair, _cp=cp_pair: total_f.plot_rule_pair_heatmap(
+                    f"_plt_g_pair_{_rule_filter_key}_{rule_a}_{rule_b}_{rp_pair}_{cp_pair}",
+                    lambda _ra=rule_a, _rb=rule_b, _rp=rp_pair, _cp=cp_pair: total_fr.plot_rule_pair_heatmap(
                         _ra, _rb, row_param=_rp, col_param=_cp, show=False
                     ),
                     "dl_g_pair",

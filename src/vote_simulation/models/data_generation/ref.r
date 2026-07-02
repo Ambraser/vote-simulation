@@ -19,16 +19,26 @@ copule_gaussienne_unif <- function(nb_candidats, nb_electeurs, R) {
 #Ici on prend une loi beta dont les paramètres sont tirés différemment pour tous les candidats
 #a et b tirés aléatoirement uniformément entre 0 et 3
 
-eval_ddd_beta <- function(nb_candidats, nb_electeurs, K = 1) {
+eval_ddd_beta <- function(nb_candidats, nb_electeurs, K = 1, alpha_min = 0, alpha_max = 3, beta_min = 0, beta_max = 3) {
   Phi_ddd <- vector("list", K)
+  if (alpha_min <=0 ){
+    alpha_min <- 1e-6
+  }
+  if (beta_min <=0 ){
+    beta_min <- 1e-6
+  }
+  if (alpha_max <=0 || beta_max <=0 ){
+    alpha_max <- 3
+    beta_max <- 3
+  }
   eps <- 1e-6
   for (j in 1:K) {
     R <- randcorr(nb_candidats)
     vunif <- copule_gaussienne_unif(nb_candidats, nb_electeurs, R)
     phi <- matrix(0, nrow = nb_candidats, ncol = nb_electeurs)
-    for (i in 1:nb_candidats) {
-      a <- runif(1, eps, 3)
-      b <- runif(1, eps, 3)
+      for (i in 1:nb_candidats) {
+        a <- runif(1, alpha_min, alpha_max)
+        b <- runif(1, beta_min, beta_max)
       phi[i, ] <- qbeta(
         vunif[i, ],
         shape1 = a,

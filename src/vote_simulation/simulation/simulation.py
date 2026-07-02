@@ -22,6 +22,7 @@ The directory layout follows::
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -50,6 +51,40 @@ def _sim_dir(base: str, model: str, n_v: int, n_c: int) -> Path:
 def _iter_filename(iteration: int) -> str:
     """Return the filename for a given iteration index (1-based display, 0-based index)."""
     return f"iter_{iteration + 1:04d}.parquet"
+
+
+def _series_cache_meta_path(cache_path: Path) -> Path:
+    """Return sidecar metadata path for a series cache parquet file."""
+    return cache_path.with_suffix(".meta.json")
+
+
+def _build_series_cache_meta(
+    *, seed: int, extra_params: dict[str, object] | None, compute_metrics: bool
+) -> dict[str, object]:
+    """Build a stable metadata payload for validating series cache reuse."""
+    return {
+        "version": 1,
+        "seed": int(seed),
+        "compute_metrics": bool(compute_metrics),
+        "extra_params": extra_params or {},
+    }
+
+
+def _read_series_cache_meta(meta_path: Path) -> dict[str, object] | None:
+    """Load series cache metadata from disk, or None when missing/invalid."""
+    try:
+        with meta_path.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        return payload if isinstance(payload, dict) else None
+    except (FileNotFoundError, OSError, json.JSONDecodeError, TypeError, ValueError):
+        return None
+
+
+def _write_series_cache_meta(meta_path: Path, payload: dict[str, object]) -> None:
+    """Persist series cache metadata sidecar."""
+    meta_path.parent.mkdir(parents=True, exist_ok=True)
+    with meta_path.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, ensure_ascii=True, sort_keys=True)
 
 
 # data obtain-or-generate
@@ -420,19 +455,28 @@ def simulation_instance(
         rules_codes=valid_rule_codes,
     )
 
-    # --- Cache check with partial-load support ---
+    # --- Cache check with metadata validation + partial-load support ---
     cache_path = Path(base_path) / "results" / f"{base_config.label}.parquet"
+    meta_path = _series_cache_meta_path(cache_path)
+    requested_meta = _build_series_cache_meta(
+        seed=seed,
+        extra_params=extra_params,
+        compute_metrics=compute_metrics,
+    )
+    cache_meta_matches = False
 
     if not reload and cache_path.is_file():
         cached = SimulationSeriesResult()
         cached.load_from_file(str(cache_path))
+        cached_meta = _read_series_cache_meta(meta_path)
+        cache_meta_matches = cached_meta == requested_meta
 
         cached_rules = set(cached.config.rules_codes)
         requested_rules = set(valid_rule_codes)
 
-        if cached_rules == requested_rules:
+        if cache_meta_matches and cached_rules == requested_rules:
             return cached
-        elif cached_rules < requested_rules:
+        elif cache_meta_matches and cached_rules < requested_rules:
             new_rules = sorted(requested_rules - cached_rules)
             cached.add_rules_to_steps(new_rules)
             cached.config = ResultConfig.single(
@@ -444,7 +488,14 @@ def simulation_instance(
             )
             cache_path.parent.mkdir(parents=True, exist_ok=True)
             cached.save_to_file(str(cache_path))
+            _write_series_cache_meta(meta_path, requested_meta)
             return cached
+
+    # If metadata changed (seed / extra_params / compute_metrics), force a data
+    # refresh to overwrite stale generated profiles and series cache consistently.
+    data_reload = reload
+    if not reload and cache_path.is_file() and not cache_meta_matches:
+        data_reload = True
 
     series = SimulationSeriesResult()
     with tqdm(total=n_iteration, desc="Simulating", disable=not show_progress) as pbar:
@@ -457,7 +508,7 @@ def simulation_instance(
                 seed=seed,
                 base_path=base_path,
                 extra_params=extra_params or {},
-                reload=reload,
+                reload=data_reload,
             )
             # Inline hot loop using pre-built builders (mirrors simulation_from_config).
             # Avoids per-iteration get_rule_builder() calls and exception overhead.
@@ -487,6 +538,7 @@ def simulation_instance(
     # --- Persist for future cache hits ---
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     series.save_to_file(str(cache_path))
+    _write_series_cache_meta(meta_path, requested_meta)
     return series
 
 

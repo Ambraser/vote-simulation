@@ -50,6 +50,11 @@ def test_ties_cases():
         # Rules that may return empty or partial sets on a Condorcet cycle
         "DODG_C",
         "DODG_S",
+        # Inherently random rules: pick one voter/outcome at random, not all symmetric co-winners
+        "RANDOM_DICTATOR",
+        "RANDOM_WINNER",
+        "AP_K_POISSON",
+        "AP_KRP",
     }  # these rules do not return all 3 co-winners on the Condorcet cycle profile
     for rule_code, rule_result in result.winners_by_rule.items():
         if rule_code in avoided_rules:

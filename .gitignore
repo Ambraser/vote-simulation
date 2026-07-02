@@ -10,6 +10,9 @@ __pycache__/
 #CHANGELOG/
 data/
 demo/results/
+all_sim/
+
+demo-ddd_beta_variants.py
 
 # Distribution / packaging
 build/

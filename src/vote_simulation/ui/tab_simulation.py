@@ -7,8 +7,10 @@ dans un thread séparé avec suivi de progression.
 
 from __future__ import annotations
 
+import copy
 import json
 import queue
+import shutil
 import sys
 import threading
 import time
@@ -88,6 +90,7 @@ _FAMILY_PREFIXES: dict[str, list[str]] = {
         "CAIR",
     ],
     "CONDORCET": [
+        "COND",
         "COPE",
         "SCHU",
         "MMAX",
@@ -230,6 +233,44 @@ def _drain_log_queue() -> list[str]:
     except queue.Empty:
         pass
     return messages
+
+
+def _invalidate_results_cache(base_path: str) -> None:
+    """Clear Results-tab caches tied to a base path before launching a new run."""
+    # Clear in-memory objects that can keep stale rule lists between runs.
+    for key in list(st.session_state.keys()):
+        if not isinstance(key, str):
+            continue
+        if key in {"gf_m_applied", "gf_v_applied", "gf_c_applied"}:
+            del st.session_state[key]
+            continue
+        if key.startswith(
+            (
+                "_res_total_",
+                "_scan_struct_",
+                "_filtered_",
+                "_series_",
+                "_total_one_",
+                "_plt_",
+                "_avail_rules_",
+                "_g_dist_df_",
+                "_g_met_df_",
+            )
+        ):
+            if base_path in key or key.startswith("_plt_"):
+                del st.session_state[key]
+
+    # Remove worker in-memory result fallback from previous full run.
+    st.session_state.pop("sim_total_result", None)
+
+    # Clear persisted aggregated total cache so Results tab rebuilds from series files.
+    total_dir = Path(base_path) / "results" / "_total_result"
+    try:
+        shutil.rmtree(total_dir)
+    except FileNotFoundError:
+        pass
+    except OSError:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -395,6 +436,8 @@ def render_tab_simulation() -> None:
             elif not cfg.get("generative_models"):
                 st.error("Aucun modèle génératif configuré (onglet Données).")
             else:
+                _invalidate_results_cache(str(Path(cfg.get("output_base_path", "../data/")).resolve()))
+
                 stop_event = threading.Event()
                 log_q: queue.Queue = queue.Queue()
                 st.session_state[_SIM_STOP_KEY] = stop_event
@@ -405,10 +448,9 @@ def render_tab_simulation() -> None:
                 st.session_state[_SIM_ERROR_KEY] = None
                 st.session_state["sim_log_messages"] = []
 
-                # Sauvegarder les modèles et règles sélectionnés avant la simulation.
-                st.session_state["_cfg_saved_gen_models"] = list(
-                    st.session_state.get("gen_models_select", cfg.get("generative_models", []))
-                )
+                # Sauvegarder l'état source de vérité (cfg), pas le widget brut.
+                st.session_state["_cfg_saved_snapshot"] = copy.deepcopy(cfg)
+                st.session_state["_cfg_saved_gen_models"] = list(cfg.get("generative_models", []))
                 st.session_state["_cfg_saved_rule_codes"] = list(cfg.get("rule_codes", []))
 
                 tmp_path = write_temp_toml(cfg, base_dir=st.session_state.get("cfg_base_dir"))

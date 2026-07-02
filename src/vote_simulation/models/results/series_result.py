@@ -11,7 +11,13 @@ import pandas as pd
 
 from vote_simulation.models.results.result_config import ResultConfig
 from vote_simulation.models.results.step_result import SimulationStepResult
-from vote_simulation.models.results.utils import MdsProjection, _plot_heatmap
+from vote_simulation.models.results.utils import (
+    MdsProjection,
+    _mds_project,
+    _plot_heatmap,
+    _plot_rules_2d_scatter,
+    _plot_rules_3d_scatter,
+)
 from vote_simulation.models.rules.winner_metrics import METRIC_FIELDS, metrics_to_array
 
 
@@ -125,6 +131,47 @@ class SimulationSeriesResult:
                 rules_codes=self._config.rules_codes | new_rules,
                 n_iterations=self._config.n_iterations,
             )
+
+    def filter_rules(self, rule_codes: list[str]) -> SimulationSeriesResult:
+        """Return a new series restricted to the specified rule codes.
+
+        Only the accumulator state is copied — ``steps`` are not included in
+        the returned object.  All plot and export methods work identically on
+        the filtered result.
+
+        Args:
+            rule_codes: Rule codes to keep.  Unknown codes are silently
+                ignored.  Codes are normalised (stripped, upper-cased) before
+                matching.
+
+        Returns:
+            A new :class:`SimulationSeriesResult` with only the selected
+            rules.  Returns an empty instance if none of the requested rules
+            are present.
+        """
+        if not rule_codes:
+            return SimulationSeriesResult()
+        normalized = {r.strip().upper() for r in rule_codes}
+        selected = [r for r in self._rule_order if r in normalized]
+        if not selected:
+            return SimulationSeriesResult()
+
+        new = SimulationSeriesResult()
+        new._rule_order = list(selected)
+        new._rule_index = {r: i for i, r in enumerate(selected)}
+        new._iteration_count = self._iteration_count
+        new._config = self._config
+
+        # Extract the sub-matrix for selected rules
+        idx = np.array([self._rule_index[r] for r in selected], dtype=np.intp)
+        new._matrix_sum = self._matrix_sum[np.ix_(idx, idx)].copy()
+
+        # Filter per-rule metric accumulators
+        new._metrics_sum = {r: v.copy() for r, v in self._metrics_sum.items() if r in normalized}
+        new._metrics_sum_sq = {r: v.copy() for r, v in self._metrics_sum_sq.items() if r in normalized}
+        new._metrics_count = {r: v for r, v in self._metrics_count.items() if r in normalized}
+
+        return new
 
     @property
     def config(self) -> ResultConfig:
@@ -299,6 +346,69 @@ class SimulationSeriesResult:
 
         return result
 
+    def export_mean_distance_matrix_csv(self, folder_save_path: str) -> str:
+        """Export the mean distance matrix as CSV.
+
+        Uses the same folder semantics as :meth:`plot_mean_distance_matrix`:
+        if *folder_save_path* is a directory (or ends with a path separator),
+        the file is written under a config-based sub-directory.
+
+        Args:
+            folder_save_path: Destination file path or folder path.
+
+        Returns:
+            The resolved CSV file path.
+        """
+        if self._iteration_count == 0:
+            raise ValueError("Cannot export: no steps have been added yet.")
+
+        save_path = self._resolve_save_path(
+            folder_save_path,
+            f"{self._iteration_count}_mean_distance_matrix.csv",
+        )
+        self.mean_distance_matrix_frame.to_csv(save_path, index=True)
+        return save_path
+
+    def export_metrics_summary_csv(
+        self,
+        folder_save_path: str,
+        *,
+        stat: str = "mean",
+        metrics: list[str] | None = None,
+    ) -> str:
+        """Export per-rule winner metrics as CSV.
+
+        Args:
+            folder_save_path: Destination file path or folder path.
+            stat: Statistic to export, ``"mean"`` or ``"std"``.
+            metrics: Optional subset of metric field names.
+
+        Returns:
+            The resolved CSV file path.
+        """
+        if stat not in {"mean", "std"}:
+            raise ValueError(f"Invalid stat '{stat}'. Expected 'mean' or 'std'.")
+
+        frame = self.metrics_summary_frame
+        if frame.empty:
+            raise ValueError("No winner-metric data found. Check that metrics were computed during simulation.")
+
+        fields = list(metrics) if metrics is not None else list(METRIC_FIELDS)
+        invalid = [m for m in fields if m not in METRIC_FIELDS]
+        if invalid:
+            raise ValueError(f"Unknown metric fields: {invalid}")
+
+        cols = [f"{field}_{stat}" for field in fields if f"{field}_{stat}" in frame.columns]
+        if not cols:
+            raise ValueError("No valid metric columns available for export.")
+
+        save_path = self._resolve_save_path(
+            folder_save_path,
+            f"{self._iteration_count}_metrics_{stat}.csv",
+        )
+        frame.loc[:, cols].to_csv(save_path, index=True)
+        return save_path
+
     def map_rules_2d(self) -> MdsProjection:
         """Project rules into 2D using Multi-Dimensional Scaling (MDS).
 
@@ -314,13 +424,7 @@ class SimulationSeriesResult:
         """
         if self._iteration_count == 0:
             raise ValueError("Cannot project: no steps have been added yet.")
-
-        from sklearn.manifold import MDS
-
-        distance_matrix = self.mean_distance_matrix
-        mds = MDS(n_components=2, metric="precomputed", random_state=42, normalized_stress="auto", n_init="random")
-        coords = mds.fit_transform(distance_matrix)
-        return MdsProjection(coords=coords, stress=float(mds.stress_))
+        return _mds_project(self.mean_distance_matrix.astype(np.float64), n_components=2)
 
     def map_rules_3d(self) -> MdsProjection:
         """Project rules into 3D using Multi-Dimensional Scaling (MDS).
@@ -337,13 +441,7 @@ class SimulationSeriesResult:
         """
         if self._iteration_count == 0:
             raise ValueError("Cannot project: no steps have been added yet.")
-
-        from sklearn.manifold import MDS
-
-        distance_matrix = self.mean_distance_matrix
-        mds = MDS(n_components=3, metric="precomputed", random_state=42, normalized_stress="auto", n_init="random")
-        coords = mds.fit_transform(distance_matrix)
-        return MdsProjection(coords=coords, stress=float(mds.stress_))
+        return _mds_project(self.mean_distance_matrix.astype(np.float64), n_components=3)
 
     def plot_rules_3d(
         self,
@@ -361,75 +459,23 @@ class SimulationSeriesResult:
             ax: Optional matplotlib Axes to draw on. A new figure is created
                 when *None*.
             show: Whether to call ``plt.show()`` at the end.
-            save_path: Optional path (file or directory) to save the plot."""
+            save_path: Optional path (file or directory) to save the plot.
 
-        import matplotlib.pyplot as plt
-        from matplotlib.figure import Figure as MplFigure
-        from mpl_toolkits.mplot3d import Axes3D  # noqa: F401  # type: ignore[reportUnusedImport]
-
+        Returns:
+            The matplotlib Axes used for plotting.
+        """
         projection = self.map_rules_3d()
-        coords, stress = projection.coords, projection.stress
-        labels = self._rule_order
-
-        if ax is None:
-            fig = plt.figure(figsize=(8, 6), constrained_layout=True)
-            ax = fig.add_subplot(111, projection="3d")
-            fig.patch.set_facecolor("white")
-
-        # scatter points
-        ax.scatter(
-            coords[:, 0],
-            coords[:, 1],
-            coords[:, 2],
-            s=60,
-            edgecolors="white",
-            linewidths=0.6,
-            zorder=3,
-        )
-
-        # label each point with its rule short code
-        for i, label in enumerate(labels):
-            ax.text(
-                coords[i, 0],
-                coords[i, 1],
-                coords[i, 2],
-                label,
-                fontsize=8,
-                fontweight="medium",
-                color="#222222",
-            )
-
         title = self._build_title("Rule proximity map (3D)")
-        title += f"\nMDS stress: {stress:.4f}"
-        ax.set_title(title, fontsize=11, pad=10)
-        ax.set_xlabel("MDS 1", fontsize=9, color="#555555")
-        ax.set_ylabel("MDS 2", fontsize=9, color="#555555")
-        ax.set_zlabel("MDS 3", fontsize=9, color="#555555")
-        ax.tick_params(labelsize=8, colors="#888888")
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        ax.spines["left"].set_color("#CCCCCC")
-        ax.spines["bottom"].set_color("#CCCCCC")
-        ax.set_aspect("equal")
-        ax.grid(True, linestyle="--", linewidth=0.4, alpha=0.5)
+        title += f"\nMDS stress: {projection.stress:.4f}"
 
+        resolved: str | None = None
         if save_path is not None:
-            resolved = self._resolve_save_path(
-                save_path,
-                f"{self._iteration_count}_rules_3d.png",
-            )
-            fig = ax.get_figure()
-            if isinstance(fig, MplFigure):
-                fig.savefig(resolved)
-            # Auto-save series parquet alongside the plot
-            parquet_path = os.path.join(
-                os.path.dirname(resolved),
-                f"{self._iteration_count}_series.parquet",
-            )
-            self.save_to_file(parquet_path)
+            resolved = self._resolve_save_path(save_path, f"{self._iteration_count}_rules_3d.png")
 
-        if show:
-            plt.show()
+        ax = _plot_rules_3d_scatter(projection.coords, self._rule_order, title, ax, show=show, save_path=resolved)
+
+        if resolved is not None:
+            self.save_to_file(os.path.join(os.path.dirname(resolved), f"{self._iteration_count}_series.parquet"))
 
         return ax
 
@@ -451,71 +497,19 @@ class SimulationSeriesResult:
             save_path: Optional path (file or directory) to save the plot.
 
         Returns:
-            The matplotlib Axes used for plotting."""
-
-        import matplotlib.pyplot as plt
-        from matplotlib.figure import Figure as MplFigure
-
+            The matplotlib Axes used for plotting.
+        """
         projection = self.map_rules_2d()
-        coords = projection.coords
-        labels = self._rule_order
-
-        if ax is None:
-            fig, ax = plt.subplots(figsize=(7, 7), constrained_layout=True)
-            fig.patch.set_facecolor("white")
-
-        # scatter points
-        ax.scatter(
-            coords[:, 0],
-            coords[:, 1],
-            s=60,
-            edgecolors="white",
-            linewidths=0.6,
-            zorder=3,
-        )
-
-        # label each point with its rule short code
-        for i, label in enumerate(labels):
-            ax.annotate(
-                label,
-                (coords[i, 0], coords[i, 1]),
-                textcoords="offset points",
-                xytext=(6, 6),
-                fontsize=8,
-                fontweight="medium",
-                color="#222222",
-            )
-
         title = self._build_title("Rule proximity map")
-        # title += f"\nMDS stress: {stress:.4f}"
-        ax.set_title(title, fontsize=11, pad=10)
-        ax.set_xlabel("MDS 1", fontsize=9, color="#555555")
-        ax.set_ylabel("MDS 2", fontsize=9, color="#555555")
-        ax.tick_params(labelsize=8, colors="#888888")
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        ax.spines["left"].set_color("#CCCCCC")
-        ax.spines["bottom"].set_color("#CCCCCC")
-        ax.set_aspect("equal")
-        ax.grid(True, linestyle="--", linewidth=0.4, alpha=0.5)
 
+        resolved: str | None = None
         if save_path is not None:
-            resolved = self._resolve_save_path(
-                save_path,
-                f"{self._iteration_count}_rules_2d.png",
-            )
-            fig = ax.get_figure()
-            if isinstance(fig, MplFigure):
-                fig.savefig(resolved)
-            # Auto-save series parquet alongside the plot
-            parquet_path = os.path.join(
-                os.path.dirname(resolved),
-                f"{self._iteration_count}_series.parquet",
-            )
-            self.save_to_file(parquet_path)
+            resolved = self._resolve_save_path(save_path, f"{self._iteration_count}_rules_2d.png")
 
-        if show:
-            plt.show()
+        ax = _plot_rules_2d_scatter(projection.coords, self._rule_order, title, ax, show=show, save_path=resolved)
+
+        if resolved is not None:
+            self.save_to_file(os.path.join(os.path.dirname(resolved), f"{self._iteration_count}_series.parquet"))
 
         return ax
 

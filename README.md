@@ -40,6 +40,18 @@ uv tool install --editable .
 
 This installs the CLI globally but with live updates - any changes you make to the source code are immediately available when you run `vote_simulation`.
 
+Run the Streamlit UI locally:
+
+```bash
+just ui
+```
+
+If port 8501 is already in use, the launcher now falls back to the first free port starting at 8501. You can still force a port explicitly:
+
+```bash
+just ui --server.port 8502
+```
+
 Run tests:
 
 ```bash

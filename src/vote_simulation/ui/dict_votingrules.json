@@ -29,6 +29,7 @@
     "SPCY": "Split Cycle",
     "BORD": "Borda Count",
     "COOM": "Coombs' Method",
+    "COND": "Condorcet Rule",
     "NANS": "Nanson's Method",
     "BALD": "Baldwin's Method",
     "MJ": "Majority Judgment",

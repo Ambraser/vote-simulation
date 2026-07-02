@@ -75,13 +75,17 @@ def render_tab_config() -> None:
     # -----------------------------------------------------------------------
     st.subheader("Fichier TOML")
 
+    if "_toml_uploader_nonce" not in st.session_state:
+        st.session_state["_toml_uploader_nonce"] = 0
+    uploader_key = f"toml_uploader_{st.session_state['_toml_uploader_nonce']}"
+
     col_import, col_export, col_reset = st.columns(3)
 
     with col_import:
         uploaded = st.file_uploader(
             "Charger un TOML",
             type=["toml"],
-            key="toml_uploader",
+            key=uploader_key,
             help="Importe un fichier simulation.toml et remplit tous les champs.",
         )
         if uploaded is not None:
@@ -139,6 +143,9 @@ def render_tab_config() -> None:
             st.session_state["toml_active_path"] = None
             st.session_state["cfg_base_dir"] = None
             st.session_state.pop("_last_upload_id", None)  # autorise un re-upload
+            # Forcer un nouvel identifiant de widget pour vider le file_uploader côté navigateur.
+            st.session_state["_toml_uploader_nonce"] += 1
+            st.session_state.pop(uploader_key, None)
             # Effacer toutes les traces de l'ancienne config chargée/temp.
             for _k in ("_original_toml_name", "_original_cfg_hash", "_active_tmp_cfg_hash", "_active_tmp_toml_path"):
                 st.session_state.pop(_k, None)
@@ -168,6 +175,7 @@ def render_tab_config() -> None:
                 "full_run_logs",
                 "_full_run_final_rerun_done",
                 "_sim_final_rerun_done",
+                "_cfg_saved_snapshot",
                 "_cfg_saved_gen_models",
                 "_cfg_post_run_restore",
                 "_cfg_saved_rule_codes",

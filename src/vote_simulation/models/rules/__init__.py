@@ -8,6 +8,9 @@ from vote_simulation.models.rules import rule_baldwin as _rule_baldwin  # noqa: 
 from vote_simulation.models.rules import rule_black as _rule_black  # noqa: F401  # type: ignore[reportUnusedImport]
 from vote_simulation.models.rules import rule_borda as _rule_borda  # noqa: F401  # type: ignore[reportUnusedImport]
 from vote_simulation.models.rules import rule_bucklin as _rule_bucklin  # noqa: F401  # type: ignore[reportUnusedImport]
+from vote_simulation.models.rules import (
+    rule_condorcet as _rule_condorcet,  # noqa: F401  # type: ignore[reportUnusedImport]
+)
 from vote_simulation.models.rules import rule_coombs as _rule_coombs  # noqa: F401  # type: ignore[reportUnusedImport]
 from vote_simulation.models.rules import (
     rule_copeland as _rule_copeland,  # noqa: F401  # type: ignore[reportUnusedImport]
@@ -22,6 +25,9 @@ from vote_simulation.models.rules import (
 )
 from vote_simulation.models.rules import (
     rule_k_approval as _rule_k_approval,  # noqa: F401  # type: ignore[reportUnusedImport]
+)
+from vote_simulation.models.rules import (
+    rule_k_random_poisson_approval as _rule_k_random_poisson_approval,  # noqa: F401  # type: ignore[reportUnusedImport]
 )
 from vote_simulation.models.rules import rule_kemeny as _rule_kemeny  # noqa: F401  # type: ignore[reportUnusedImport]
 from vote_simulation.models.rules import (

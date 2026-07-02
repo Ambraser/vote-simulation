@@ -15,6 +15,7 @@ from vote_simulation.models.results.total_result import (
     SimulationTotalResult,
     _extract_key,
 )
+from vote_simulation.models.rules.winner_metrics import WinnerMetrics
 
 matplotlib.use("Agg")
 
@@ -23,9 +24,23 @@ matplotlib.use("Agg")
 # Helpers
 # ------------------------------------------------------------------
 
+_DUMMY_METRICS = WinnerMetrics(
+    social_acceptability=0.5,
+    utility_mean=0.5,
+    utility_median=0.5,
+    utility_var=0.1,
+    rank_mean=2.0,
+    rank_median=2.0,
+    rank_var=0.5,
+    freq_first=0.3,
+    freq_last=0.2,
+    has_tie=False,
+    n_cowinners=1,
+)
+
 
 def _make_series(model: str, n_v: int, n_c: int, n_steps: int = 3) -> SimulationSeriesResult:
-    """Create a minimal series with deterministic winners."""
+    """Create a minimal series with deterministic winners and dummy metrics."""
     cfg = ResultConfig.single(gen_model=model, n_voters=n_v, n_candidates=n_c)
     series = SimulationSeriesResult()
     for i in range(n_steps):
@@ -33,9 +48,9 @@ def _make_series(model: str, n_v: int, n_c: int, n_steps: int = 3) -> Simulation
             data_source=f"test_{model}_{n_v}_{n_c}_{i}",
             config=cfg,
         )
-        step.add_method_result("PLU1", [f"c{i % n_c}"])
-        step.add_method_result("BORD", [f"c{(i + 1) % n_c}"])
-        step.add_method_result("RV", ["c0"])
+        step.add_method_result_with_metrics("PLU1", [f"c{i % n_c}"], _DUMMY_METRICS)
+        step.add_method_result_with_metrics("BORD", [f"c{(i + 1) % n_c}"], _DUMMY_METRICS)
+        step.add_method_result_with_metrics("RV", ["c0"], _DUMMY_METRICS)
         series.add_step(step)
     return series
 
@@ -265,6 +280,32 @@ class TestMetrics:
         df = total.rule_pair_frame("PLU1", "NONEXISTENT")
         assert df["distance"].isna().all()
 
+    def test_mean_distance_matrix_frame_returns_dataframe(self) -> None:
+        total = _make_total_4().filter(gen_model="UNI")
+        frame = total.mean_distance_matrix_frame()
+        assert list(frame.index) == list(frame.columns)
+        assert frame.shape[0] >= 2
+
+    def test_export_mean_distance_matrix_csv(self) -> None:
+        total = _make_total_4().filter(gen_model="UNI")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "mean_distance.csv")
+            out = total.export_mean_distance_matrix_csv(path)
+            assert out == path
+            assert os.path.isfile(path)
+            loaded = np.genfromtxt(path, delimiter=",", dtype=str)
+            assert loaded.shape[0] > 1
+
+    def test_export_metrics_rules_matrix_csv(self) -> None:
+        total = _make_total_4().filter(gen_model="UNI")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "metrics.csv")
+            out = total.export_metrics_rules_matrix_csv(path)
+            assert out == path
+            assert os.path.isfile(path)
+            loaded = np.genfromtxt(path, delimiter=",", dtype=str)
+            assert loaded.shape[0] > 1
+
 
 # ------------------------------------------------------------------
 # Plotting
@@ -313,6 +354,35 @@ class TestPlotting:
                 save_path=path,
             )
             assert os.path.isfile(path)
+
+    def test_plot_mean_distance_matrix_title_shows_averaged_voters(self) -> None:
+        total = SimulationTotalResult()
+        total.add_series(_make_series("UNI", 10, 3))
+        total.add_series(_make_series("UNI", 20, 3))
+        total.add_series(_make_series("UNI", 50, 3))
+
+        ax = total.filter(gen_model="UNI", n_candidates=3).plot_mean_distance_matrix(show=False)
+        assert "n_votants=avg(10,20,50)" in ax.get_title()
+
+    def test_plot_mean_distance_matrix_title_shows_averaged_candidates(self) -> None:
+        total = SimulationTotalResult()
+        total.add_series(_make_series("UNI", 100, 3))
+        total.add_series(_make_series("UNI", 100, 5))
+        total.add_series(_make_series("UNI", 100, 8))
+
+        ax = total.filter(gen_model="UNI", n_voters=100).plot_mean_distance_matrix(show=False)
+        assert "n_candidates=avg(3,5,8)" in ax.get_title()
+
+    def test_plot_mean_distance_matrix_save_basename(self, tmp_path) -> None:
+        total = _make_total_4().filter(gen_model="UNI")
+        previous_cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            total.plot_mean_distance_matrix(show=False, save_path="mean_matrix.png")
+            assert os.path.isfile("mean_matrix.png")
+            assert os.path.getsize("mean_matrix.png") > 0
+        finally:
+            os.chdir(previous_cwd)
 
 
 # ------------------------------------------------------------------
