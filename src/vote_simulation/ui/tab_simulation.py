@@ -7,7 +7,6 @@ dans un thread séparé avec suivi de progression.
 
 from __future__ import annotations
 
-import copy
 import json
 import queue
 import shutil
@@ -18,9 +17,8 @@ from pathlib import Path
 from typing import Any
 
 import streamlit as st
-from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ctx
 
-from vote_simulation.ui.toml_utils import QueueWriter, write_temp_toml
+from vote_simulation.ui.toml_utils import QueueWriter
 
 # ---------------------------------------------------------------------------
 # Dictionnaire code → nom lisible (voting rules)
@@ -283,7 +281,7 @@ def render_tab_simulation() -> None:
     _init_sim_state()
 
     st.header("Simulation — Règles de vote")
-    st.caption("Sélectionnez les règles à appliquer, choisissez la source des données, puis lancez la simulation.")
+    st.caption("Sélectionnez les règles à appliquer puis lancez la simulation depuis la barre globale.")
 
     cfg: dict = st.session_state["cfg"]
 
@@ -374,108 +372,6 @@ def render_tab_simulation() -> None:
 
     # Résumé
     st.info(f"**{len(selected_rules)} règle(s) sélectionnée(s)** sur {len(all_codes)} disponibles.")
-
-    st.divider()
-
-    # ────────────────────────────────────────────────────────────────────────
-    # 3.3 Source des données
-    # -----------------------------------------------------------------------
-    st.subheader("Source des données")
-
-    data_source = st.radio(
-        "Données à utiliser",
-        options=["Données générées (onglet Données)", "Dossier existant (chemin personnalisé)"],
-        index=0 if not cfg.get("input_folder_path") else 1,
-        key="sim_data_source",
-        horizontal=True,
-    )
-
-    if data_source == "Dossier existant (chemin personnalisé)":
-        folder_path = st.text_input(
-            "Chemin du dossier de données",
-            value=cfg.get("input_folder_path") or cfg.get("output_base_path", "../data/"),
-            key="sim_input_folder",
-            help="Chemin vers le dossier contenant les sous-dossiers gen/ avec les .parquet.",
-        )
-        cfg["input_folder_path"] = folder_path
-    else:
-        cfg["input_folder_path"] = None
-
-    st.divider()
-
-    # -----------------------------------------------------------------------
-    # 3.3 Actions
-    # -----------------------------------------------------------------------
-    st.subheader("Actions")
-
-    reload_flag: bool = st.checkbox(
-        "Forcer le recalcul (reload)",
-        value=False,
-        key="sim_reload",
-        help=(
-            "Coché : ignore les fichiers de résultats existants et recalcule"
-            " chaque itération depuis zéro.\n"
-            "Décoché (défaut) : passe les itérations dont le fichier existe déjà."
-        ),
-    )
-
-    is_running: bool = st.session_state[_SIM_RUNNING_KEY]
-
-    col_run, col_cancel = st.columns(2)
-
-    with col_run:
-        run_disabled = is_running or not selected_rules or not cfg.get("generative_models")
-        if st.button(
-            "Lancer la simulation",
-            disabled=run_disabled,
-            type="primary",
-            key="sim_run_btn",
-        ):
-            if not selected_rules:
-                st.error("Sélectionnez au moins une règle de vote.")
-            elif not cfg.get("generative_models"):
-                st.error("Aucun modèle génératif configuré (onglet Données).")
-            else:
-                _invalidate_results_cache(str(Path(cfg.get("output_base_path", "../data/")).resolve()))
-
-                stop_event = threading.Event()
-                log_q: queue.Queue = queue.Queue()
-                st.session_state[_SIM_STOP_KEY] = stop_event
-                st.session_state[_SIM_LOG_Q_KEY] = log_q
-                st.session_state[_SIM_PROGRESS_KEY] = (0, 0)
-                st.session_state[_SIM_RUNNING_KEY] = True
-                st.session_state[_SIM_DONE_KEY] = False
-                st.session_state[_SIM_ERROR_KEY] = None
-                st.session_state["sim_log_messages"] = []
-
-                # Sauvegarder l'état source de vérité (cfg), pas le widget brut.
-                st.session_state["_cfg_saved_snapshot"] = copy.deepcopy(cfg)
-                st.session_state["_cfg_saved_gen_models"] = list(cfg.get("generative_models", []))
-                st.session_state["_cfg_saved_rule_codes"] = list(cfg.get("rule_codes", []))
-
-                tmp_path = write_temp_toml(cfg, base_dir=st.session_state.get("cfg_base_dir"))
-                st.session_state["sim_tmp_toml"] = tmp_path
-
-                t = threading.Thread(
-                    target=_run_simulation,
-                    args=(tmp_path, stop_event, log_q, reload_flag),
-                    daemon=True,
-                )
-                add_script_run_ctx(t, get_script_run_ctx())
-                t.start()
-                st.session_state[_SIM_THREAD_KEY] = t
-                st.session_state["_sim_final_rerun_done"] = False
-                st.rerun()
-
-    with col_cancel:
-        if st.button(
-            "Annuler",
-            disabled=not is_running,
-            key="sim_cancel_btn",
-        ):
-            stop: threading.Event = st.session_state[_SIM_STOP_KEY]
-            stop.set()
-            st.warning("Arrêt demandé — la simulation s'interrompra à la prochaine itération.")
 
     # -----------------------------------------------------------------------
     # Feedback

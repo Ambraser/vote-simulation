@@ -11,6 +11,7 @@ __pycache__/
 data/
 demo/results/
 all_sim/
+irl_election/
 
 demo-ddd_beta_variants.py
 
