@@ -267,63 +267,6 @@ def render_tab_generation() -> None:
     )
 
     # -----------------------------------------------------------------------
-    # 2.3 Actions — Générer / Annuler
-    # -----------------------------------------------------------------------
-    st.subheader("Actions")
-
-    is_running: bool = st.session_state[_RUNNING_KEY]
-
-    col_run, col_cancel = st.columns(2)
-
-    with col_run:
-        run_disabled = is_running or not selected_models or total_profiles == 0
-        if st.button(
-            "Generer les donnees",
-            disabled=run_disabled,
-            type="primary",
-            key="gen_run_btn",
-        ):
-            if not selected_models:
-                st.error("Sélectionnez au moins un modèle génératif.")
-            elif not cfg.get("voters") or not cfg.get("candidates"):
-                st.error("Configurez les listes de voters et de candidats.")
-            else:
-                # Réinitialiser l'état
-                stop_event = threading.Event()
-                log_q: queue.Queue = queue.Queue()
-                st.session_state[_STOP_EVENT_KEY] = stop_event
-                st.session_state[_LOG_QUEUE_KEY] = log_q
-                st.session_state[_PROGRESS_KEY] = (0, total_profiles)
-                st.session_state[_RUNNING_KEY] = True
-                st.session_state[_DONE_KEY] = False
-                st.session_state[_ERROR_KEY] = None
-                st.session_state["gen_log_messages"] = []
-
-                # Écriture du TOML temporaire
-                tmp_path = write_temp_toml(cfg, base_dir=st.session_state.get("cfg_base_dir"))
-                st.session_state["gen_tmp_toml"] = tmp_path
-
-                t = threading.Thread(
-                    target=_run_generation,
-                    args=(tmp_path, stop_event, log_q),
-                    daemon=True,
-                )
-                add_script_run_ctx(t, get_script_run_ctx())
-                t.start()
-                st.session_state[_THREAD_KEY] = t
-                st.rerun()
-
-    with col_cancel:
-        if st.button(
-            "Annuler",
-            disabled=not is_running,
-            key="gen_cancel_btn",
-        ):
-            stop: threading.Event = st.session_state[_STOP_EVENT_KEY]
-            stop.set()
-            st.warning("Arrêt demandé — la génération s'interrompra à la prochaine itération.")
-
-    # -----------------------------------------------------------------------
     # Feedback — Progression et logs
     # -----------------------------------------------------------------------
     _render_gen_feedback()
