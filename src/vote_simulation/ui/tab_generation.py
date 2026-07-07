@@ -16,9 +16,8 @@ from pathlib import Path
 from typing import Any
 
 import streamlit as st
-from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ctx
 
-from vote_simulation.ui.toml_utils import QueueWriter, write_temp_toml
+from vote_simulation.ui.toml_utils import QueueWriter
 
 # ---------------------------------------------------------------------------
 # Dictionnaire code → nom lisible (data generation)
