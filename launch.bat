@@ -78,11 +78,11 @@ if errorlevel 1 (
 echo [OK] Python 3.13 disponible.
 
 :: ============================================================
-:: 3. Avertissement R / rpy2
+:: 3. Verifier R / installer les packages requis (MASS, randcorr)
 ::    rpy2 est une dependance du projet et necessite R sur Windows.
 :: ============================================================
 where Rscript >nul 2>&1
-if not errorlevel 1 goto :r_ok
+if not errorlevel 1 goto :r_found
 
 echo.
 echo [AVERTISSEMENT] R n'est pas installe ou absent du PATH.
@@ -99,6 +99,17 @@ if /i "!USER_CHOICE!"=="O" goto :r_ok
 if /i "!USER_CHOICE!"=="N" goto :cancelled
 echo Repondez par O ou N.
 goto :ask_r
+
+:r_found
+:: R est present : installer automatiquement les packages requis (MASS, randcorr)
+echo.
+echo [INFO] Installation / verification des packages R requis ^(MASS, randcorr^)...
+Rscript -e "pkgs <- c('MASS','randcorr'); for(p in pkgs){ if(!requireNamespace(p, quietly=TRUE)){ cat('[INFO] Installation du package R :', p, '\n'); install.packages(p, repos='https://cran.r-project.org', quiet=FALSE) } else { cat('[OK] Package R :', p, 'deja installe\n') }}"
+if errorlevel 1 (
+    echo.
+    echo [AVERTISSEMENT] Echec lors de la verification des packages R.
+    echo   Les generateurs bases sur R ^(DDD_BETA^) pourraient ne pas fonctionner.
+)
 
 :r_ok
 
@@ -126,7 +137,8 @@ echo [OK] Dependances synchronisees.
 echo.
 echo [INFO] Demarrage de vote_simulation UI...
 echo   Le navigateur va s'ouvrir automatiquement.
-echo   Appuyez sur Ctrl+C dans cette fenetre pour arreter le serveur.
+echo   Tapez 'stop' ou 's' + Entree pour arreter le serveur.
+echo   Vous pouvez aussi fermer l'onglet du navigateur (arret automatique).
 echo.
 
 uv run --python 3.13 vote-sim-ui

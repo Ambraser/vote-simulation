@@ -18,6 +18,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import multiprocessing as mp
+import os
 import queue
 import sys
 import threading
@@ -27,12 +28,18 @@ from pathlib import Path
 import streamlit as st
 from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ctx
 
+from vote_simulation.ui._server import ensure_auto_shutdown_started
 from vote_simulation.ui._worker import simulation_worker
 from vote_simulation.ui.tab_config import render_tab_config
 from vote_simulation.ui.tab_generation import _parse_int_list, render_tab_generation
 from vote_simulation.ui.tab_results import render_tab_results
 from vote_simulation.ui.tab_simulation import _FAMILIES, render_tab_simulation
 from vote_simulation.ui.toml_utils import DEFAULT_STATE, state_to_toml, write_temp_toml
+
+# Start the auto-shutdown watcher (exits when all browser tabs are closed).
+# Called here at module level so it runs on the very first script execution;
+# _server.py's module-level flag ensures the thread is started only once.
+ensure_auto_shutdown_started()
 
 # ---------------------------------------------------------------------------
 # Streamlit page configuration
@@ -592,6 +599,16 @@ def _refresh_active_toml() -> None:
 
 def main() -> None:
     _init_session()
+
+    # ── Sidebar : server controls ─────────────────────────────────────────
+    with st.sidebar:
+        st.markdown("### Contrôles serveur")
+        st.caption("Le serveur s'arrête aussi automatiquement quand tous les onglets sont fermés.")
+        if st.button("⏹ Arrêter le serveur", type="secondary", use_container_width=True):
+            st.info("Arrêt du serveur en cours…")
+            time.sleep(0.4)
+            os._exit(0)
+        st.markdown("---")
 
     # ────────────────────────────────────────────────────────────────────────
     # Widget state restoration after a full run / simulation.
