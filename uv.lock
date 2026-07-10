@@ -2324,13 +2324,17 @@ dependencies = [
     { name = "pandas" },
     { name = "pyarrow" },
     { name = "rich" },
-    { name = "rpy2" },
     { name = "scikit-learn" },
     { name = "streamlit" },
     { name = "svvamp" },
     { name = "tomli-w" },
     { name = "tqdm" },
     { name = "typer" },
+]
+
+[package.optional-dependencies]
+r = [
+    { name = "rpy2" },
 ]
 
 [package.dev-dependencies]
@@ -2365,7 +2369,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.2.0" },
     { name = "pyarrow", specifier = ">=23.0.1" },
     { name = "rich" },
-    { name = "rpy2", specifier = ">=3.5.0" },
+    { name = "rpy2", marker = "extra == 'r'", specifier = ">=3.5.0" },
     { name = "scikit-learn", specifier = ">=1.8.0" },
     { name = "streamlit", specifier = ">=1.57.0" },
     { name = "svvamp", specifier = ">=0.13.0" },
@@ -2373,6 +2377,7 @@ requires-dist = [
     { name = "tqdm", specifier = ">=4.67.3" },
     { name = "typer" },
 ]
+provides-extras = ["r"]
 
 [package.metadata.requires-dev]
 dev = [

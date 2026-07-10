@@ -31,7 +31,7 @@ def _auto_shutdown_worker() -> None:
     while True:
         time.sleep(2)
         try:
-            from streamlit.runtime import get_instance  # type: ignore[import-untyped]
+            from streamlit.runtime import get_instance
 
             runtime = get_instance()
             if runtime is None:

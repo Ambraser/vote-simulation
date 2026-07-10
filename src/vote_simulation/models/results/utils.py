@@ -217,7 +217,7 @@ def _plot_rules_3d_scatter(
     """
     import matplotlib.pyplot as plt
     from matplotlib.figure import Figure as MplFigure
-    from mpl_toolkits.mplot3d import Axes3D  # noqa: F401  # type: ignore[reportUnusedImport]
+    from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 
     if ax is None:
         fig = plt.figure(figsize=(8, 6), constrained_layout=True)
