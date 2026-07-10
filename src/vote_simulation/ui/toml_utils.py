@@ -152,8 +152,7 @@ def _parse_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
         val = _coerce_int(simulation["iterations"], "iterations", DEFAULT_STATE["iterations"], warnings)
         if val <= 0:
             warnings.append(
-                f"Field `iterations` must be > 0 (received {val}) — default used: "
-                f"{DEFAULT_STATE['iterations']}."
+                f"Field `iterations` must be > 0 (received {val}) — default used: {DEFAULT_STATE['iterations']}."
             )
         else:
             state["iterations"] = val

@@ -415,9 +415,7 @@ def render_tab_results() -> None:
     structure = st.session_state[_scan_key]
 
     if not structure:
-        st.info(
-            f"No results in `{base_path}/sim_result/`.\n\nLaunch a simulation in the **Simulation** tab."
-        )
+        st.info(f"No results in `{base_path}/sim_result/`.\n\nLaunch a simulation in the **Simulation** tab.")
         return
 
     # ── Session cache of the total ──────────────────────────────────────────

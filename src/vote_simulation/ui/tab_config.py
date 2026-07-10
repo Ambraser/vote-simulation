@@ -64,8 +64,7 @@ def render_tab_config() -> None:
     """Renders the Configuration tab."""
     st.header("Configuration")
     st.caption(
-        "Load an existing TOML file or configure the simulation manually. "
-        "Changes here are reflected across all tabs."
+        "Load an existing TOML file or configure the simulation manually. Changes here are reflected across all tabs."
     )
 
     cfg: dict = st.session_state["cfg"]
