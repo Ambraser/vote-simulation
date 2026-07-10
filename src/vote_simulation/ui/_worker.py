@@ -39,8 +39,8 @@ def simulation_worker(
     - ``("progress", current: int, total: int)`` — progress tick
     - ``("done_file", tmp_path: str)``            — success; result pickled to file
     - ``("done", None)``                          — success fallback (pickle failed)
-    - ``("cancelled", reason: str)``              — annulation demandée
-    - ``("error", message: str)``                 — exception non gérée
+    - ``("cancelled", reason: str)``              — cancellation requested
+    - ``("error", message: str)``                 — unhandled exception
     """
     import vote_simulation.simulation.simulation as _sim_module
     from vote_simulation.simulation.simulation import simulation_series_from_config_2
@@ -58,7 +58,7 @@ def simulation_worker(
             self.n += n
             if mp_stop.is_set():
                 self.close()
-                raise InterruptedError("Annulé")
+                raise InterruptedError("Cancelled")
             total = self.total or 0
             mp_queue.put(("progress", min(self.n, total), total))
             return None

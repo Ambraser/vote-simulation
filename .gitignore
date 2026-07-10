@@ -12,6 +12,8 @@ data/
 demo/results/
 all_sim/
 irl_election/
+demo/rolland-al_sim/
+simu-15-juin/
 
 demo-ddd_beta_variants.py
 

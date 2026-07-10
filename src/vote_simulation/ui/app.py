@@ -1,15 +1,15 @@
-"""Application Streamlit principale — vote_simulation UI.
+"""Main Streamlit application — vote_simulation UI.
 
-Structure :
-    Barre globale (statut, TOML actif, Run complet)
-    └── Onglet 1 : Configuration
-    └── Onglet 2 : Données (génération)
-    └── Onglet 3 : Simulation (règles)
-    └── Onglet 4 : Résultats
+Structure:
+    Global bar (status, active TOML, Full run)
+    └── Tab 1: Configuration
+    └── Tab 2: Data (generation)
+    └── Tab 3: Simulation (rules)
+    └── Tab 4: Results
 
-Lancement :
+Launch:
     streamlit run src/vote_simulation/ui/app.py
-    # ou via l'entry-point :
+    # or via the entry-point:
     vote-sim-ui
 """
 
@@ -35,7 +35,7 @@ from vote_simulation.ui.tab_simulation import _FAMILIES, render_tab_simulation
 from vote_simulation.ui.toml_utils import DEFAULT_STATE, state_to_toml, write_temp_toml
 
 # ---------------------------------------------------------------------------
-# Configuration de la page Streamlit
+# Streamlit page configuration
 # ---------------------------------------------------------------------------
 
 st.set_page_config(
@@ -45,22 +45,22 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
-# Initialisation de session_state
+# session_state initialisation
 # ---------------------------------------------------------------------------
 
 
 def _init_session() -> None:
     if "cfg" not in st.session_state:
-        # Démarrer sans configuration par défaut — l'utilisateur charge explicitement un TOML.
+        # Start with no default configuration — the user explicitly loads a TOML.
         st.session_state["cfg"] = copy.deepcopy(DEFAULT_STATE)
-        st.session_state["toml_active_path"] = None  # Aucune config chargée
+        st.session_state["toml_active_path"] = None  # No config loaded
         st.session_state["cfg_base_dir"] = None
 
-    # Statuts globaux
+    # Global status
     if "global_status" not in st.session_state:
-        st.session_state["global_status"] = "Prêt"
+        st.session_state["global_status"] = "Ready"
 
-    # État du Run complet
+    # Full run state
     if "full_run_running" not in st.session_state:
         st.session_state["full_run_running"] = False
     if "full_run_done" not in st.session_state:
@@ -81,13 +81,13 @@ def _init_session() -> None:
         st.session_state["full_run_start_time"] = None
     if "full_run_end_time" not in st.session_state:
         st.session_state["full_run_end_time"] = None
-    # Verrou anti-boucle pour le rerun final du fragment
+    # Anti-loop lock for the fragment's final rerun
     if "_full_run_final_rerun_done" not in st.session_state:
         st.session_state["_full_run_final_rerun_done"] = False
 
 
 def _project_cfg_to_widgets(cfg: dict) -> None:
-    """Projecte explicitement cfg vers les clés widget sensibles aux valeurs stale."""
+    """Explicitly projects cfg into widget keys sensitive to stale values."""
     st.session_state["cfg_output_base_path"] = cfg.get("output_base_path") or ""
     seed_val = cfg.get("seed")
     st.session_state["cfg_seed"] = int(seed_val) if seed_val is not None else None
@@ -95,22 +95,22 @@ def _project_cfg_to_widgets(cfg: dict) -> None:
     st.session_state["gen_candidates_input"] = ", ".join(str(c) for c in cfg.get("candidates", []))
     st.session_state["gen_iterations_slider"] = int(cfg.get("iterations", 1000))
 
-    # Ces widgets sont reconstruits depuis cfg dans l'onglet Simulation.
+    # These widgets are rebuilt from cfg in the Simulation tab.
     for key in ("sim_data_source", "sim_input_folder"):
         st.session_state.pop(key, None)
 
-    # Purger les clés dynamiques pour forcer value=/cfg au prochain render.
+    # Purge dynamic keys to force value=/cfg on next render.
     for key in list(st.session_state.keys()):
         if isinstance(key, str) and (key.startswith("rules_family_") or key.startswith("gp_")):
             del st.session_state[key]
 
-    # Les multiselects se synchronisent en début d'onglet via ces flags.
+    # Multiselects synchronise at the start of their tab via these flags.
     st.session_state["_cfg_gen_needs_sync"] = True
     st.session_state["_cfg_rules_needs_sync"] = True
 
 
 # ---------------------------------------------------------------------------
-# Run complet — Génération + Simulation enchaînées
+# Full run — Generation + Simulation chained
 # ---------------------------------------------------------------------------
 
 # On POSIX (Linux / macOS) we use "fork": the child inherits the parent's
@@ -128,12 +128,11 @@ def _run_full(
     log_q: queue.Queue,
     reload: bool = False,
 ) -> None:
-    """Thread moniteur : lance la simulation dans un sous-processus forké et relaie sa progression.
+    """Monitor thread: launches the simulation in a forked subprocess and relays its progress.
 
-    Le sous-processus dispose de son propre GIL (aucune concurrence avec l'event
-    loop Tornado / asyncio de Streamlit), ce qui lui permet d'atteindre les
-    performances d'exécution d'un notebook — sans aucune modification du code
-    de simulation lui-même.
+    The subprocess has its own GIL (no contention with Streamlit's Tornado / asyncio
+    event loop), allowing it to reach notebook-level execution performance —
+    without any modification to the simulation code itself.
     """
     _ctx = mp.get_context(_MP_CONTEXT)
     mp_queue: mp.Queue = _ctx.Queue()
@@ -148,19 +147,19 @@ def _run_full(
 
     try:
         while True:
-            # Annulation demandée depuis l'UI
+            # Cancellation requested from the UI
             if stop_event.is_set():
                 mp_stop.set()
                 proc.join(timeout=10)
                 if proc.is_alive():
                     proc.terminate()
                     proc.join()
-                raise InterruptedError("Run complet annulé.")
+                raise InterruptedError("Full run cancelled.")
 
-            # Détection de fin anormale (crash du sous-processus sans message)
+            # Abnormal termination detection (subprocess crash without message)
             if not proc.is_alive() and mp_queue.empty():
                 ec = proc.exitcode
-                raise RuntimeError(f"Le processus de simulation s'est terminé inopinément (code {ec}).")
+                raise RuntimeError(f"The simulation process terminated unexpectedly (exit code {ec}).")
 
             try:
                 msg = mp_queue.get(timeout=0.2)
@@ -192,20 +191,20 @@ def _run_full(
                         pass
                 _cur_total = st.session_state.get("full_run_progress", (0, 1))[1]
                 st.session_state["full_run_progress"] = (_cur_total, _cur_total)
-                log_q.put("Run complet terminé.")
+                log_q.put("Full run completed.")
                 st.session_state["full_run_done"] = True
                 st.session_state["full_run_error"] = None
-                st.session_state["global_status"] = "Terminé"
+                st.session_state["global_status"] = "Done"
                 proc.join()
                 return
             elif msg_type == "done":
                 # Fallback: subprocess could not serialize the result.
                 _cur_total = st.session_state.get("full_run_progress", (0, 1))[1]
                 st.session_state["full_run_progress"] = (_cur_total, _cur_total)
-                log_q.put("Run complet terminé.")
+                log_q.put("Full run completed.")
                 st.session_state["full_run_done"] = True
                 st.session_state["full_run_error"] = None
-                st.session_state["global_status"] = "Terminé"
+                st.session_state["global_status"] = "Done"
                 proc.join()
                 return
             elif msg_type == "cancelled":
@@ -214,15 +213,15 @@ def _run_full(
                 raise RuntimeError(msg[1])
 
     except InterruptedError as exc:
-        log_q.put(f"Annulé : {exc}")
+        log_q.put(f"Cancelled: {exc}")
         st.session_state["full_run_done"] = True
-        st.session_state["full_run_error"] = "Annulé"
-        st.session_state["global_status"] = "Annulé"
+        st.session_state["full_run_error"] = "Cancelled"
+        st.session_state["global_status"] = "Cancelled"
     except Exception as exc:
-        log_q.put(f"Erreur : {exc}")
+        log_q.put(f"Error: {exc}")
         st.session_state["full_run_done"] = True
         st.session_state["full_run_error"] = str(exc)
-        st.session_state["global_status"] = "Erreur"
+        st.session_state["global_status"] = "Error"
     finally:
         if proc.is_alive():
             proc.terminate()
@@ -232,12 +231,12 @@ def _run_full(
 
 
 # ---------------------------------------------------------------------------
-# Barre globale
+# Global bar
 # ---------------------------------------------------------------------------
 
 
 def _render_global_bar() -> None:
-    """Affiche la barre de statut globale persistante en haut de page."""
+    """Renders the persistent global status bar at the top of the page."""
     cfg: dict = st.session_state["cfg"]
     status: str = st.session_state.get("global_status", "Prêt")
     toml_path: str = st.session_state.get("toml_active_path") or "Aucune config chargée"
@@ -247,14 +246,14 @@ def _render_global_bar() -> None:
         or st.session_state.get("sim_running", False)
     )
 
-    # Calcul du statut global à partir des sous-états
+    # Compute global status from sub-states
     if st.session_state.get("gen_running") or st.session_state.get("sim_running"):
         if st.session_state.get("gen_running"):
-            status = "Génération en cours…"
+            status = "Generating…"
         else:
-            status = "Simulation en cours…"
+            status = "Simulating…"
     elif st.session_state.get("full_run_running"):
-        status = "Run complet en cours…"
+        status = "Full run in progress…"
 
     st.session_state["global_status"] = status
 
@@ -263,8 +262,8 @@ def _render_global_bar() -> None:
     with col_status:
         color = (
             "#28a745"
-            if "Prêt" in status or "Terminé" in status
-            else ("#dc3545" if "Erreur" in status or "Annulé" in status else "#fd7e14")
+            if "Ready" in status or "Done" in status
+            else ("#dc3545" if "Error" in status or "Cancelled" in status else "#fd7e14")
         )
         st.markdown(
             f'<div style="padding:8px 12px; border-radius:6px; background:{color}20; '
@@ -276,49 +275,49 @@ def _render_global_bar() -> None:
     with col_toml:
         st.markdown(
             f'<div style="padding:8px 12px; border-radius:6px; background:#f0f2f6; '
-            f'font-family:monospace; font-size:0.85em; color:#444;">TOML actif : {toml_path}</div>',
+            f'font-family:monospace; font-size:0.85em; color:#444;">Active TOML: {toml_path}</div>',
             unsafe_allow_html=True,
         )
 
     with col_reload:
         st.checkbox(
-            "Recalcul forcé",
+            "Force recompute",
             key="global_full_reload",
-            help="Recalcule même si les résultats de simulation existent déjà (reload).",
+            help="Recomputes even if simulation results already exist (reload).",
             disabled=is_running,
         )
 
     with col_run:
         full_run_disabled = is_running or not cfg.get("generative_models") or not cfg.get("rule_codes")
         if st.button(
-            "Run complet",
+            "Full run",
             disabled=full_run_disabled,
             type="primary",
             key="global_full_run",
-            help="Enchaîne Génération → Simulation avec la configuration courante.",
+            help="Chains Generation → Simulation with the current configuration.",
             use_container_width=True,
         ):
-            # Validation défensive — le bouton est normalement désactivé si ces champs
-            # sont vides, mais une corruption de session_state peut les vider entre
-            # deux renders. On vérifie avant de lancer le thread pour éviter une erreur
-            # peu lisible depuis load_simulation_config().
+            # Defensive validation — the button is normally disabled if these fields
+            # are empty, but session_state corruption could clear them between renders.
+            # We check before starting the thread to avoid an unreadable error
+            # from load_simulation_config().
             if not cfg.get("rule_codes"):
-                st.error("La configuration ne contient aucune règle de vote — rechargez le TOML.")
+                st.error("The configuration contains no voting rules — please reload the TOML.")
                 st.stop()
             if not cfg.get("generative_models"):
-                st.error("La configuration ne contient aucun modèle génératif — rechargez le TOML.")
+                st.error("The configuration contains no generative models — please reload the TOML.")
                 st.stop()
 
-            # Invalider les caches de résultats de la session précédente.
-            # L'onglet Résultats utilisera sim_total_result (construit en mémoire)
-            # au lieu de relire les Parquet depuis le disque.
+            # Invalidate result caches from the previous session.
+            # The Results tab will use sim_total_result (built in memory)
+            # instead of re-reading Parquet files from disk.
             st.session_state.pop("sim_total_result", None)
             for _k in [k for k in st.session_state if k.startswith("_res_total_")]:
                 del st.session_state[_k]
             for _k in [k for k in st.session_state if k.startswith("_scan_struct_")]:
                 del st.session_state[_k]
 
-            # Sauvegarder l'état source de vérité (cfg) pour restauration après run.
+            # Save the source-of-truth state (cfg) for restoration after the run.
             st.session_state["_cfg_saved_snapshot"] = copy.deepcopy(cfg)
             st.session_state["_cfg_saved_gen_models"] = list(cfg.get("generative_models", []))
             st.session_state["_cfg_saved_rule_codes"] = list(cfg.get("rule_codes", []))
@@ -332,17 +331,17 @@ def _render_global_bar() -> None:
             st.session_state["full_run_error"] = None
             st.session_state["full_run_logs"] = []
             st.session_state["_full_run_final_rerun_done"] = False  # permet le rerun final
-            # Pré-calculer le nombre de combinaisons (model × voters × candidates)
-            # pour afficher la barre avant le premier tick du thread.
+            # Pre-compute the number of combinations (model × voters × candidates)
+            # to display the progress bar before the thread's first tick.
             _pre_total = max(
                 len(cfg.get("generative_models", [])) * len(cfg.get("voters", [])) * len(cfg.get("candidates", [])),
                 1,
             )
             st.session_state["full_run_progress"] = (0, _pre_total)
-            st.session_state["global_status"] = "Run complet en cours…"
+            st.session_state["global_status"] = "Full run in progress…"
 
-            # Réutiliser le fichier TOML temp maintenu à jour par _refresh_active_toml().
-            # En cas d'absence (première exécution sans modification préalable), en créer un.
+            # Reuse the temp TOML file kept up to date by _refresh_active_toml().
+            # If absent (first run without prior modification), create one.
             tmp_path = st.session_state.get("_active_tmp_toml_path") or write_temp_toml(
                 cfg, base_dir=st.session_state.get("cfg_base_dir")
             )
@@ -360,13 +359,13 @@ def _render_global_bar() -> None:
             st.session_state["full_run_end_time"] = None
             st.rerun()
 
-    # Feedback du Run complet
+    # Full run feedback
     if st.session_state.get("full_run_running") or st.session_state.get("full_run_done"):
         _render_full_run_feedback()
 
 
 def _fmt_duration(seconds: float) -> str:
-    """Formate une durée en secondes en chaîne lisible (Xm Ys ou Xs)."""
+    """Formats a duration in seconds as a human-readable string (Xm Ys or Xs)."""
     s = int(seconds)
     h, rem = divmod(s, 3600)
     m, sec = divmod(rem, 60)
@@ -379,15 +378,15 @@ def _fmt_duration(seconds: float) -> str:
 
 @st.fragment(run_every=1)
 def _render_full_run_feedback() -> None:
-    """Feedback inline pour le Run complet.
+    """Inline feedback for the Full run.
 
-    Fragment Streamlit (run_every=1 s) : seule cette section se ré-exécute
-    chaque seconde, sans relancer les 4 onglets.  Cela libère quasi-totalement
-    le GIL au profit du thread de simulation et supprime la compétition CPU
-    responsable du ralentissement ×10 observé avec l'ancien time.sleep+rerun.
+    Streamlit fragment (run_every=1 s): only this section re-executes every
+    second, without re-running the 4 tabs.  This nearly fully releases the GIL
+    for the simulation thread and eliminates the CPU contention responsible for
+    the ×10 slowdown observed with the old time.sleep+rerun approach.
 
-    Un unique rerun complet est déclenché en fin de run pour mettre à jour
-    le statut global, réactiver le bouton, etc.
+    A single full rerun is triggered at the end of the run to update the global
+    status, re-enable the button, etc.
     """
     is_running: bool = st.session_state.get("full_run_running", False)
     is_done: bool = st.session_state.get("full_run_done", False)
@@ -404,35 +403,35 @@ def _render_full_run_feedback() -> None:
     if new_msgs:
         st.session_state["full_run_logs"].extend(new_msgs)
 
-    # ── Barre de progression + timer ──────────────────────────────────────
+    # ── Progress bar + timer ──────────────────────────────────────────────
     current, total = progress_tuple
     start_t: float | None = st.session_state.get("full_run_start_time")
     end_t: float | None = st.session_state.get("full_run_end_time")
 
     if total > 0:
         frac = min(current / total, 1.0)
-        # Construire le label avec timer
+        # Build the label with timer
         if is_running and start_t is not None:
             elapsed = time.monotonic() - start_t
             elapsed_str = _fmt_duration(elapsed)
             if current > 0:
                 eta = elapsed / current * (total - current)
-                label = f"Run complet : {current}/{total} — ⏱ {elapsed_str} écoulé · ETA ~{_fmt_duration(eta)}"
+                label = f"Full run: {current}/{total} — ⏱ {elapsed_str} elapsed · ETA ~{_fmt_duration(eta)}"
             else:
-                label = f"Run complet : {current}/{total} — ⏱ {elapsed_str} écoulé"
+                label = f"Full run: {current}/{total} — ⏱ {elapsed_str} elapsed"
         elif is_done and start_t is not None and end_t is not None:
             elapsed_str = _fmt_duration(end_t - start_t)
-            label = f"Run complet : {current}/{total} — terminé en {elapsed_str}"
+            label = f"Full run: {current}/{total} — completed in {elapsed_str}"
         else:
-            label = f"Run complet : {current}/{total}"
+            label = f"Full run: {current}/{total}"
         st.progress(frac, text=label)
     elif is_running:
-        # Barre indéterminée immédiatement après le clic (pas encore de tqdm tick)
+        # Indeterminate bar immediately after click (no tqdm tick yet)
         elapsed_str = _fmt_duration(time.monotonic() - start_t) if start_t else ""
-        st.progress(0.0, text=f"Run complet en cours… {elapsed_str}")
+        st.progress(0.0, text=f"Full run in progress… {elapsed_str}")
 
     if st.session_state["full_run_logs"]:
-        with st.expander("Logs du Run complet", expanded=False):
+        with st.expander("Full run logs", expanded=False):
             st.text_area(
                 "Logs",
                 value="\n".join(st.session_state["full_run_logs"][-200:]),
@@ -443,60 +442,60 @@ def _render_full_run_feedback() -> None:
             )
 
     if is_done and not is_running:
-        if error and error != "Annulé":
-            st.error(f"Run complet — Erreur : {error}")
-        elif error == "Annulé":
-            st.warning("Run complet annulé.")
+        if error and error != "Cancelled":
+            st.error(f"Full run — Error: {error}")
+        elif error == "Cancelled":
+            st.warning("Full run cancelled.")
         else:
-            st.success("Run complet terminé — consultez l'onglet Résultats.")
+            st.success("Full run completed — see the Results tab.")
 
     if is_running:
         t: threading.Thread | None = st.session_state.get("full_run_thread")
         if t is not None and not t.is_alive():
-            # Thread terminé mais flag pas encore remis à False — correction défensive.
+            # Thread finished but flag not yet reset to False — defensive fix.
             st.session_state["full_run_running"] = False
 
-    # ── Rerun complet unique à la fin du run ─────────────────────────────────
-    # Déclenché une seule fois quand is_done passe à True pour que le reste de
-    # la page (statut global, bouton, onglet Résultats) soit rafraîchi.
+    # ── Single full rerun at the end of the run ───────────────────────────────
+    # Triggered once when is_done becomes True so the rest of the page
+    # (global status, button, Results tab) is refreshed.
     if is_done and not is_running:
         if not st.session_state.get("_full_run_final_rerun_done", False):
             st.session_state["_full_run_final_rerun_done"] = True
-            st.session_state["_cfg_post_run_restore"] = True  # restaure gen_models
-            st.rerun()  # rerun complet (hors fragment) — une seule fois
+            st.session_state["_cfg_post_run_restore"] = True  # restores gen_models
+            st.rerun()  # full rerun (outside fragment) — once only
 
 
 # ---------------------------------------------------------------------------
-# Point d'entrée principal
+# Main entry point
 # ---------------------------------------------------------------------------
 
 
 def _sync_cfg_from_widgets() -> None:
-    """Pré-applique les valeurs courantes des widgets à cfg avant le rendu de tab_config.
+    """Pre-applies the current widget values to cfg before rendering tab_config.
 
-    Streamlit exécute les onglets dans l'ordre de déclaration.  tab_config (onglet 1)
-    calcule l'aperçu TOML AVANT que tab_generation et tab_simulation n'aient mis à jour
-    cfg via leurs propres widgets.  Cette fonction lit les valeurs déjà stockées dans
-    session_state (disponibles dès le début du script sur chaque rerun) et les applique
-    à cfg, de sorte que l'aperçu reflète toujours l'état courant des widgets.
+    Streamlit executes tabs in declaration order.  tab_config (tab 1) computes
+    the TOML preview BEFORE tab_generation and tab_simulation have updated cfg
+    via their own widgets.  This function reads values already stored in
+    session_state (available from the start of the script on each rerun) and
+    applies them to cfg, so the preview always reflects the current widget state.
     """
     cfg: dict | None = st.session_state.get("cfg")
     if cfg is None:
         return
 
-    # ── Onglet Données ────────────────────────────────────────────────────
-    # output_base_path (tab_config widget, mais appliqué ici aussi pour cohérence)
+    # ── Data tab ─────────────────────────────────────────────────────────
+    # output_base_path (tab_config widget, also applied here for consistency)
     if "cfg_output_base_path" in st.session_state:
         cfg["output_base_path"] = st.session_state["cfg_output_base_path"]
 
-    # Seed (number_input → int ou None)
+    # Seed (number_input → int or None)
     if "cfg_seed" in st.session_state:
         val = st.session_state["cfg_seed"]
         cfg["seed"] = int(val) if val is not None else None
 
-    # Modèles génératifs
-    # Si une resynchronisation depuis cfg est demandée, on n'écrase pas cfg
-    # avec un état navigateur potentiellement stale sur ce rerun.
+    # Generative models
+    # If a resync from cfg is requested, do not overwrite cfg
+    # with a potentially stale browser state on this rerun.
     if not st.session_state.get("_cfg_gen_needs_sync", False) and "gen_models_select" in st.session_state:
         cfg["generative_models"] = list(st.session_state["gen_models_select"])
 
@@ -513,10 +512,10 @@ def _sync_cfg_from_widgets() -> None:
         if isinstance(val, (int, float)) and int(val) > 0:
             cfg["iterations"] = int(val)
 
-    # ── Onglet Simulation — Règles de vote ───────────────────────────────
-    # Agréger toutes les familles présentes dans session_state.
-    # On ne touche à rule_codes que si au moins une clé de famille existe,
-    # pour éviter d'écraser une config chargée via TOML avant le premier rendu.
+    # ── Simulation tab — Voting rules ────────────────────────────────────
+    # Aggregate all families present in session_state.
+    # We only touch rule_codes if at least one family key exists,
+    # to avoid overwriting a config loaded via TOML before the first render.
     rule_keys = [f"rules_family_{fid}" for _, fid in _FAMILIES]
     if (not st.session_state.get("_cfg_rules_needs_sync", False)) and any(k in st.session_state for k in rule_keys):
         # Build new selection in family order (for detecting newly added rules)
@@ -536,16 +535,16 @@ def _sync_cfg_from_widgets() -> None:
 
 
 def _refresh_active_toml() -> None:
-    """Maintient un fichier TOML temp à jour reflétant l'état courant de cfg.
+    """Keeps a temp TOML file up to date reflecting the current cfg state.
 
-    Appelé à chaque rerun, après _sync_cfg_from_widgets().  Calcule un hash du
-    contenu TOML sérialisé et ne réécrit sur disque que si cfg a changé depuis
-    la dernière écriture (évite des I/O inutiles).
+    Called on every rerun, after _sync_cfg_from_widgets().  Computes a hash of
+    the serialised TOML content and only rewrites to disk if cfg has changed
+    since the last write (avoids unnecessary I/O).
 
-    Met à jour :
-    - ``session_state["_active_tmp_toml_path"]`` : chemin absolu du fichier temp
-    - ``session_state["toml_active_path"]`` : libellé affiché dans la barre globale
-      (ex. "simulation.toml", "simulation.toml (modifié)", "Interface (non sauvegardé)")
+    Updates:
+    - ``session_state["_active_tmp_toml_path"]``: absolute path of the temp file
+    - ``session_state["toml_active_path"]``: label displayed in the global bar
+      (e.g. "simulation.toml", "simulation.toml (modified)", "UI (unsaved)")
     """
     cfg: dict | None = st.session_state.get("cfg")
     if cfg is None:
@@ -556,13 +555,13 @@ def _refresh_active_toml() -> None:
     cfg_hash = hashlib.md5(toml_str.encode()).hexdigest()  # noqa: S324 — non-cryptographic
 
     if st.session_state.get("_active_tmp_cfg_hash") == cfg_hash:
-        # Rien n'a changé : le fichier temp existant est encore valide.
+        # Nothing changed: the existing temp file is still valid.
         return
 
-    # Écriture du nouveau fichier temp (resolve output_base_path depuis cfg_base_dir).
+    # Write the new temp file (resolving output_base_path from cfg_base_dir).
     tmp_path = write_temp_toml(cfg, base_dir=st.session_state.get("cfg_base_dir"))
 
-    # Nettoyage de l'ancien fichier temp pour éviter l'accumulation dans /tmp/.
+    # Clean up the old temp file to avoid accumulation in /tmp/.
     old_path: str | None = st.session_state.get("_active_tmp_toml_path")
     if old_path and old_path != tmp_path:
         try:
@@ -573,20 +572,20 @@ def _refresh_active_toml() -> None:
     st.session_state["_active_tmp_toml_path"] = tmp_path
     st.session_state["_active_tmp_cfg_hash"] = cfg_hash
 
-    # ── Libellé affiché dans la barre globale ────────────────────────────
+    # ── Label displayed in the global bar ────────────────────────────────
     original_name: str | None = st.session_state.get("_original_toml_name")
     original_hash: str | None = st.session_state.get("_original_cfg_hash")
 
     if original_name:
-        # Un fichier a été chargé : signaler si la config a été modifiée depuis.
+        # A file was loaded: indicate if the config has been modified since.
         if cfg_hash == original_hash:
             label: str | None = original_name
         else:
-            label = f"{original_name} (modifié)"
+            label = f"{original_name} (modified)"
     else:
-        # Pas de fichier chargé : config construite entièrement depuis l'interface.
+        # No file loaded: config built entirely from the UI.
         has_content = bool(cfg.get("generative_models") or cfg.get("rule_codes"))
-        label = "Interface (non sauvegardé)" if has_content else None
+        label = "UI (unsaved)" if has_content else None
 
     st.session_state["toml_active_path"] = label
 
@@ -595,20 +594,19 @@ def main() -> None:
     _init_session()
 
     # ────────────────────────────────────────────────────────────────────────
-    # Restauration de l'état des widgets après un run complet/simulation.
+    # Widget state restoration after a full run / simulation.
     #
-    # Problème : quand le fragment (@st.fragment run_every=1) déclenche
-    # st.rerun(), Streamlit réconcilie l'état WebSocket du navigateur (qui
-    # n'a pas été mis à jour pendant les reruns fragmentaires) avec le
-    # session_state serveur. La valeur "froide" du navigateur pour le
-    # multiselect gen_models_select peut écraser la valeur serveur,
-    # supprimant les modèles ajoutés entre deux runs.
-    # Solution : sauvegarder gen_models_select avant chaque run et le
-    # restaurer ici, avant _sync_cfg_from_widgets, sur le rerun final.
+    # Problem: when the fragment (@st.fragment run_every=1) triggers st.rerun(),
+    # Streamlit reconciles the browser's WebSocket state (which was not updated
+    # during fragment reruns) with the server session_state.  The browser's
+    # "cold" value for the gen_models_select multiselect can overwrite the server
+    # value, dropping models added between runs.
+    # Solution: save gen_models_select before each run and restore it here,
+    # before _sync_cfg_from_widgets, on the final rerun.
     # ────────────────────────────────────────────────────────────────────────
     if st.session_state.pop("_cfg_post_run_restore", False):
-        # Restaurer l'état cfg capturé au lancement du run : protège contre
-        # tout reset/écrasement intervenu pendant les reruns fragmentaires.
+        # Restore the cfg state captured at run launch: guards against any
+        # reset / overwrite that occurred during fragment reruns.
         saved_snapshot = st.session_state.pop("_cfg_saved_snapshot", None)
         if saved_snapshot is not None:
             st.session_state["cfg"] = copy.deepcopy(saved_snapshot)
@@ -619,35 +617,35 @@ def main() -> None:
 
         if _cfg_now is not None:
             _project_cfg_to_widgets(_cfg_now)
-            # Sur ce rerun précis, on bloque la synchro widgets->cfg pour éviter
-            # qu'une valeur navigateur stale ré-écrase le cfg courant.
+            # On this precise rerun, block widget→cfg sync to avoid a stale
+            # browser value overwriting the current cfg.
             st.session_state["_skip_widget_sync_once"] = True
 
-    # Pré-synchroniser cfg depuis les widgets pour que l'aperçu TOML de tab_config
-    # reflète immédiatement chaque modification dans les onglets Données et Simulation.
+    # Pre-sync cfg from widgets so that the tab_config TOML preview
+    # immediately reflects every change in the Data and Simulation tabs.
     if st.session_state.pop("_skip_widget_sync_once", False):
         pass
     else:
         _sync_cfg_from_widgets()
 
-    # Maintenir le fichier TOML temp à jour et le libellé "TOML actif".
+    # Keep the temp TOML file and the "Active TOML" label up to date.
     _refresh_active_toml()
 
-    # En-tête
+    # Header
     st.title("vote_simulation")
     st.markdown("---")
 
-    # Barre globale
+    # Global bar
     _render_global_bar()
     st.markdown("---")
 
-    # 4 onglets principaux
+    # 4 main tabs
     tab_cfg, tab_gen, tab_sim, tab_res = st.tabs(
         [
             "Configuration",
-            "Données",
+            "Data",
             "Simulation",
-            "Résultats",
+            "Results",
         ]
     )
 

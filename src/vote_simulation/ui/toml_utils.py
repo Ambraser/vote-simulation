@@ -1,6 +1,6 @@
-"""Bijection entre l'état courant de l'UI (session_state) et un fichier TOML valide.
+"""Bijection between the current UI state (session_state) and a valid TOML file.
 
-L'état UI est un dict plat avec les clés suivantes :
+The UI state is a flat dict with the following keys:
 
     output_base_path : str
     seed             : int
@@ -31,7 +31,7 @@ import tomli_w
 
 
 class QueueWriter:
-    """Redirige sys.stdout vers une queue — utilisé par les threads de génération/simulation."""
+    """Redirects sys.stdout to a queue — used by generation/simulation threads."""
 
     def __init__(self, q: queue.Queue[str]) -> None:
         self._q = q
@@ -51,61 +51,61 @@ class QueueWriter:
 
 
 def _coerce_int(value: Any, field: str, default: int, warnings: list[str]) -> int:
-    """Convertit *value* en int (via float) ; journalise un warning si nécessaire."""
+    """Converts *value* to int (via float); logs a warning if necessary."""
     try:
         result = int(float(value))
         return result
     except (TypeError, ValueError):
-        warnings.append(f"Champ `{field}` invalide ({value!r}) — valeur par défaut utilisée : {default}.")
+        warnings.append(f"Field `{field}` invalid ({value!r}) — default used: {default}.")
         return default
 
 
 def _coerce_int_list(value: Any, field: str, default: list[int], warnings: list[str]) -> list[int]:
-    """Convertit *value* en liste[int] ; accepte les scalaires et les floats."""
+    """Converts *value* to list[int]; accepts scalars and floats."""
     if not isinstance(value, list):
-        warnings.append(f"Champ `{field}` : scalaire converti en liste.")
+        warnings.append(f"Field `{field}`: scalar converted to list.")
         value = [value]
     try:
         result = sorted({int(float(v)) for v in value if float(v) > 0})
         if not result:
-            warnings.append(f"Champ `{field}` vide ou invalide — valeur par défaut utilisée : {default}.")
+            warnings.append(f"Field `{field}` empty or invalid — default used: {default}.")
             return list(default)
         return result
     except (TypeError, ValueError) as exc:
-        warnings.append(f"Champ `{field}` invalide ({value!r}) — valeur par défaut utilisée : {default}. ({exc})")
+        warnings.append(f"Field `{field}` invalid ({value!r}) — default used: {default}. ({exc})")
         return list(default)
 
 
 def _coerce_str_list(value: Any, field: str, warnings: list[str]) -> list[str]:
-    """Convertit *value* en liste[str] normalisée (strip + upper) ; accepte les scalaires."""
+    """Converts *value* to a normalised list[str] (strip + upper); accepts scalars."""
     if isinstance(value, str):
-        warnings.append(f"Champ `{field}` : scalaire converti en liste.")
+        warnings.append(f"Field `{field}`: scalar converted to list.")
         value = [value]
     if not isinstance(value, list):
-        warnings.append(f"Champ `{field}` ignoré (type inattendu : {type(value).__name__}).")
+        warnings.append(f"Field `{field}` ignored (unexpected type: {type(value).__name__}).")
         return []
     return [str(v).strip().upper() for v in value if str(v).strip()]
 
 
 def _parse_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
-    """Extrait et coerce les champs depuis un payload TOML parsé.
+    """Extracts and coerces fields from a parsed TOML payload.
 
-    Accepte deux structures :
-    - ``[simulation]`` section wrappée (format standard)
-    - Clés à la racine (format plat)
+    Accepts two structures:
+    - ``[simulation]`` wrapped section (standard format)
+    - Keys at the root (flat format)
 
-    Retourne ``(state, warnings)``.
+    Returns ``(state, warnings)``.
     """
     warnings: list[str] = []
     state: dict[str, Any] = copy.deepcopy(DEFAULT_STATE)
 
-    # Résoudre la section simulation
+    # Resolve the simulation section
     simulation = payload.get("simulation", {})
     if not isinstance(simulation, dict):
-        warnings.append("Section `[simulation]` de type inattendu — ignorée.")
+        warnings.append("Section `[simulation]` has unexpected type — ignored.")
         simulation = {}
 
-    # Si aucune clé simulation trouvée, essayer la racine (TOML plat)
+    # If no simulation keys found, try the root (flat TOML)
     KNOWN_KEYS = {
         "output_base_path",
         "seed",
@@ -118,7 +118,7 @@ def _parse_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     }
     if not simulation and any(k in payload for k in KNOWN_KEYS):
         simulation = payload
-        warnings.append("Aucune section `[simulation]` trouvée — lecture des clés à la racine du fichier.")
+        warnings.append("No `[simulation]` section found — reading keys from the root of the file.")
 
     # output_base_path
     if "output_base_path" in simulation:
@@ -152,7 +152,7 @@ def _parse_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
         val = _coerce_int(simulation["iterations"], "iterations", DEFAULT_STATE["iterations"], warnings)
         if val <= 0:
             warnings.append(
-                f"Champ `iterations` doit être > 0 (reçu {val}) — valeur par défaut utilisée : "
+                f"Field `iterations` must be > 0 (received {val}) — default used: "
                 f"{DEFAULT_STATE['iterations']}."
             )
         else:
@@ -173,7 +173,7 @@ def _parse_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
                 gp[key] = dict(params)
             else:
                 warnings.append(
-                    f"Section `generator_params.{model}` ignorée (type inattendu : {type(params).__name__})."
+                    f"Section `generator_params.{model}` ignored (unexpected type: {type(params).__name__})."
                 )
         state["generator_params"] = gp
 
@@ -204,9 +204,9 @@ DEFAULT_STATE: dict[str, Any] = {
 
 
 def state_to_toml(state: dict[str, Any]) -> str:
-    """Convertit l'état courant de l'UI en contenu TOML valide (str).
+    """Converts the current UI state to a valid TOML string.
 
-    Le document produit est directement lisible par ``load_simulation_config()``.
+    The produced document is directly readable by ``load_simulation_config()``.
     """
     sim: dict[str, Any] = {
         "generative_models": list(state.get("generative_models", [])),
@@ -246,18 +246,18 @@ def state_to_toml(state: dict[str, Any]) -> str:
 
 
 def write_temp_toml(state: dict[str, Any], base_dir: str | None = None) -> str:
-    """Écrit l'état courant dans un fichier TOML temporaire et retourne son chemin.
+    """Writes the current state to a temporary TOML file and returns its path.
 
-    ``output_base_path`` est systématiquement converti en chemin absolu avant
-    l'écriture, de sorte que ``load_simulation_config()`` ne le réinterprète
-    pas relativement au dossier /tmp/ du fichier temporaire.
+    ``output_base_path`` is always converted to an absolute path before writing,
+    so that ``load_simulation_config()`` does not interpret it relative to the
+    /tmp/ folder of the temporary file.
 
     Args:
-        state: État courant de l'UI (session_state["cfg"]).
-        base_dir: Répertoire de base pour résoudre les chemins relatifs.
-            Si fourni, ``output_base_path`` relatif est résolu depuis ce
-            répertoire (== le dossier du fichier TOML d'origine).
-            Si ``None``, résolution depuis le dossier de travail courant.
+        state: Current UI state (session_state["cfg"]).
+        base_dir: Base directory for resolving relative paths.
+            If provided, a relative ``output_base_path`` is resolved from this
+            directory (== the folder of the original TOML file).
+            If ``None``, resolved from the current working directory.
     """
     resolved_state = dict(state)
     raw_path = resolved_state.get("output_base_path", "../data/")
@@ -284,14 +284,14 @@ def write_temp_toml(state: dict[str, Any], base_dir: str | None = None) -> str:
 
 
 def toml_to_state(toml_path: str | Path) -> dict[str, Any]:
-    """Parse un fichier TOML et retourne un état UI complet.
+    """Parses a TOML file and returns a complete UI state.
 
-    Les clés absentes du fichier sont remplies par ``DEFAULT_STATE``.
-    Compatible avec les TOML à section ``[simulation]`` et les TOML plats.
+    Keys absent from the file are filled from ``DEFAULT_STATE``.
+    Compatible with ``[simulation]``-section TOMLs and flat TOMLs.
     """
     path = Path(toml_path)
     if not path.is_file():
-        raise FileNotFoundError(f"Fichier TOML introuvable : {path}")
+        raise FileNotFoundError(f"TOML file not found: {path}")
 
     raw = path.read_bytes()
     # Strip UTF-8 BOM if present
@@ -306,43 +306,43 @@ def toml_to_state(toml_path: str | Path) -> dict[str, Any]:
     try:
         payload = tomllib.loads(text)
     except tomllib.TOMLDecodeError as exc:
-        raise ValueError(f"Fichier TOML invalide ({path.name}) : {exc}") from exc
+        raise ValueError(f"Invalid TOML file ({path.name}): {exc}") from exc
 
     state, _warnings = _parse_payload(payload)
     return state
 
 
 def toml_bytes_to_state(raw_bytes: bytes) -> tuple[dict[str, Any], list[str]]:
-    """Parse des bytes TOML (upload Streamlit) et retourne ``(state, warnings)``.
+    """Parses TOML bytes (Streamlit upload) and returns ``(state, warnings)``.
 
-    Gère :
-    - UTF-8 avec ou sans BOM
-    - Encodage latin-1 en fallback
-    - Structure ``[simulation]`` wrappée ou TOML plat
-    - Types incorrects (float → int, scalaire → liste, etc.)
+    Handles:
+    - UTF-8 with or without BOM
+    - latin-1 encoding as fallback
+    - Wrapped ``[simulation]`` structure or flat TOML
+    - Incorrect types (float → int, scalar → list, etc.)
     """
     warnings: list[str] = []
 
     # UTF-8 BOM
     if raw_bytes.startswith(b"\xef\xbb\xbf"):
         raw_bytes = raw_bytes[3:]
-        warnings.append("BOM UTF-8 détecté et supprimé.")
+        warnings.append("UTF-8 BOM detected and removed.")
 
-    # Décodage
+    # Decoding
     try:
         text = raw_bytes.decode("utf-8")
     except UnicodeDecodeError:
         try:
             text = raw_bytes.decode("latin-1")
-            warnings.append("Encodage non-UTF-8 détecté — lecture en latin-1.")
+            warnings.append("Non-UTF-8 encoding detected — reading as latin-1.")
         except Exception as exc:
-            raise ValueError("Impossible de décoder le fichier (UTF-8 et latin-1 échoués).") from exc
+            raise ValueError("Cannot decode file (UTF-8 and latin-1 both failed).") from exc
 
     # Parse TOML
     try:
         payload = tomllib.loads(text)
     except tomllib.TOMLDecodeError as exc:
-        raise ValueError(f"Fichier TOML syntaxiquement invalide : {exc}") from exc
+        raise ValueError(f"Syntactically invalid TOML file: {exc}") from exc
 
     state, parse_warnings = _parse_payload(payload)
     return state, warnings + parse_warnings

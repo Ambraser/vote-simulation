@@ -1,7 +1,7 @@
-"""Onglet 1 — Configuration TOML.
+"""Tab 1 — TOML Configuration.
 
-Permet de charger, modifier et exporter la configuration simulation
-sans toucher au code. Toute modification se répercute dans st.session_state.
+Allows loading, editing and exporting the simulation configuration
+without touching the code. Any change is propagated to st.session_state.
 """
 
 from __future__ import annotations
@@ -19,25 +19,25 @@ from vote_simulation.ui.toml_utils import (
 
 
 def _cfg_hash(state: dict) -> str:
-    """Retourne un hash MD5 du TOML sérialisé depuis *state*."""
+    """Returns an MD5 hash of the serialised TOML from *state*."""
     return hashlib.md5(state_to_toml(state).encode()).hexdigest()  # noqa: S324
 
 
 def _clear_cfg_widget_keys() -> None:
-    """Synchronise tous les widgets pilotés par cfg avec les valeurs du cfg courant.
+    """Synchronises all cfg-driven widgets with the values of the current cfg.
 
-    Doit être appelé avant st.rerun() après tout chargement externe de cfg
-    (upload TOML, réinitialisation).
+    Must be called before st.rerun() after any external cfg load
+    (TOML upload, reset).
 
-    IMPORTANT : effacer les clés session_state ne suffit pas — Streamlit restaure
-    la valeur soumise par le navigateur (stale) au lieu d'utiliser value=/default=.
-    On écrit donc explicitement chaque valeur dans session_state depuis cfg, ce qui
-    prend la priorité absolue sur la valeur du navigateur.
+    IMPORTANT: clearing session_state keys is not enough — Streamlit restores
+    the value submitted by the browser (stale) instead of using value=/default=.
+    We therefore write each value explicitly into session_state from cfg, which
+    takes absolute priority over the browser value.
     """
     cfg = st.session_state.get("cfg", {})
 
-    # ---- Widgets simples (text_input, number_input, slider) ----
-    # Écrire directement la valeur cfg dans session_state → priorité absolue.
+    # ---- Simple widgets (text_input, number_input, slider) ----
+    # Write the cfg value directly into session_state → absolute priority.
     st.session_state["cfg_output_base_path"] = cfg.get("output_base_path") or ""
     seed_val = cfg.get("seed")
     st.session_state["cfg_seed"] = int(seed_val) if seed_val is not None else None
@@ -45,27 +45,27 @@ def _clear_cfg_widget_keys() -> None:
     st.session_state["gen_candidates_input"] = ", ".join(str(c) for c in cfg.get("candidates", []))
     st.session_state["gen_iterations_slider"] = int(cfg.get("iterations", 1000))
 
-    # ──── Widgets optionnels (radio/text source données) — simple suppression suffit
+    # ──── Optional widgets (radio/text data source) — simple deletion is sufficient
     for key in ("sim_data_source", "sim_input_folder"):
         st.session_state.pop(key, None)
 
-    # ---- Multiselects (dépendent de registres externes chargés dans les onglets) ----
-    # Utiliser des flags consommés par chaque onglet au début de son rendu.
-    st.session_state["_cfg_gen_needs_sync"] = True  # → gen_models_select dans render_tab_generation
-    st.session_state["_cfg_rules_needs_sync"] = True  # → rules_family_* dans render_tab_simulation
+    # ---- Multiselects (depend on external registries loaded in the tabs) ----
+    # Use flags consumed by each tab at the start of its render.
+    st.session_state["_cfg_gen_needs_sync"] = True  # → gen_models_select in render_tab_generation
+    st.session_state["_cfg_rules_needs_sync"] = True  # → rules_family_* in render_tab_simulation
 
-    # Vider les anciennes clés rules_family_* pour éviter des conflits de type
+    # Clear old rules_family_* keys to avoid type conflicts
     for key in list(st.session_state.keys()):
         if isinstance(key, str) and key.startswith("rules_family_"):
             del st.session_state[key]
 
 
 def render_tab_config() -> None:
-    """Rend l'onglet Configuration."""
+    """Renders the Configuration tab."""
     st.header("Configuration")
     st.caption(
-        "Chargez un fichier TOML existant ou paramétrez la simulation manuellement. "
-        "Les changements ici se reflètent dans tous les onglets."
+        "Load an existing TOML file or configure the simulation manually. "
+        "Changes here are reflected across all tabs."
     )
 
     cfg: dict = st.session_state["cfg"]
@@ -73,7 +73,7 @@ def render_tab_config() -> None:
     # -----------------------------------------------------------------------
     # Section 1 — Import / Export
     # -----------------------------------------------------------------------
-    st.subheader("Fichier TOML")
+    st.subheader("TOML File")
 
     if "_toml_uploader_nonce" not in st.session_state:
         st.session_state["_toml_uploader_nonce"] = 0
@@ -83,22 +83,22 @@ def render_tab_config() -> None:
 
     with col_import:
         uploaded = st.file_uploader(
-            "Charger un TOML",
+            "Load a TOML",
             type=["toml"],
             key=uploader_key,
-            help="Importe un fichier simulation.toml et remplit tous les champs.",
+            help="Import a simulation.toml file and fill in all fields.",
         )
         if uploaded is not None:
-            # getvalue() lit toujours depuis le début du buffer, contrairement à read()
-            # qui avance la position de lecture et retourne b"" sur les rerenders suivants
-            # (Streamlit peut réutiliser le même objet BytesIO entre rerenders).
+            # getvalue() always reads from the start of the buffer, unlike read()
+            # which advances the read position and returns b"" on subsequent rerenders
+            # (Streamlit may reuse the same BytesIO object between rerenders).
             raw = uploaded.getvalue()
             if not raw:
-                # Lecture vide — buffer consommé sur ce render, ignorer silencieusement.
+                # Empty read — buffer consumed on this render, silently ignore.
                 pass
             else:
-                # Dédoublonnage basé sur le contenu (hash) — pas sur le nom/taille.
-                # Permet de ré-uploader le même fichier après modification.
+                # Deduplication based on content (hash) — not on name/size.
+                # Allows re-uploading the same file after modification.
                 upload_id = hashlib.md5(raw).hexdigest()  # noqa: S324 — non-cryptographic use
                 if st.session_state.get("_last_upload_id") != upload_id:
                     try:
@@ -106,47 +106,47 @@ def render_tab_config() -> None:
                         st.session_state["cfg"] = new_state
                         st.session_state["toml_active_path"] = uploaded.name
                         st.session_state["_last_upload_id"] = upload_id
-                        # Fichier uploadé : pas de chemin sur disque → pas de base_dir
+                        # Uploaded file: no path on disk → no base_dir
                         st.session_state["cfg_base_dir"] = None
-                        # Mémoriser le nom et le hash d'origine pour détecter les
-                        # modifications ultérieures et afficher "(modifié)" dans la barre.
+                        # Store the original name and hash to detect subsequent
+                        # modifications and display "(modified)" in the bar.
                         st.session_state["_original_toml_name"] = uploaded.name
                         st.session_state["_original_cfg_hash"] = _cfg_hash(new_state)
-                        # Invalider le cache temp pour forcer une réécriture immédiate.
+                        # Invalidate the temp cache to force an immediate rewrite.
                         st.session_state.pop("_active_tmp_cfg_hash", None)
                         st.session_state.pop("_active_tmp_toml_path", None)
                         _clear_cfg_widget_keys()
                         for w in warnings:
                             st.warning(w)
-                        st.success(f"Chargé : **{uploaded.name}**")
+                        st.success(f"Loaded: **{uploaded.name}**")
                         st.rerun()
                     except Exception as exc:
-                        st.error(f"Erreur lors du chargement du TOML : {exc}")
+                        st.error(f"Error loading TOML: {exc}")
         else:
-            # Fichier retiré de l'uploader : effacer le cache pour autoriser
-            # un futur re-upload du même fichier.
+            # File removed from the uploader: clear the cache to allow
+            # a future re-upload of the same file.
             st.session_state.pop("_last_upload_id", None)
 
     with col_export:
         toml_content = state_to_toml(cfg)
         st.download_button(
-            label="Exporter la config",
+            label="Export config",
             data=toml_content.encode("utf-8"),
             file_name="simulation.toml",
             mime="text/plain",
-            help="Télécharge simulation.toml à partir des réglages courants.",
+            help="Downloads simulation.toml from the current settings.",
         )
 
     with col_reset:
-        if st.button("Réinitialiser", help="Remet la configuration à zéro (état vide, sans config chargée)."):
+        if st.button("Reset", help="Resets the configuration to an empty state (no loaded config)."):
             st.session_state["cfg"] = copy.deepcopy(DEFAULT_STATE)
             st.session_state["toml_active_path"] = None
             st.session_state["cfg_base_dir"] = None
-            st.session_state.pop("_last_upload_id", None)  # autorise un re-upload
-            # Forcer un nouvel identifiant de widget pour vider le file_uploader côté navigateur.
+            st.session_state.pop("_last_upload_id", None)  # allow re-upload
+            # Force a new widget identifier to clear the file_uploader on the browser side.
             st.session_state["_toml_uploader_nonce"] += 1
             st.session_state.pop(uploader_key, None)
-            # Effacer toutes les traces de l'ancienne config chargée/temp.
+            # Clear all traces of the old loaded/temp config.
             for _k in ("_original_toml_name", "_original_cfg_hash", "_active_tmp_cfg_hash", "_active_tmp_toml_path"):
                 st.session_state.pop(_k, None)
             # Effacer les caches de résultats de simulation.
@@ -157,7 +157,7 @@ def render_tab_config() -> None:
                 if isinstance(k, str) and (k.startswith("_res_total_") or k.startswith("_scan_struct_"))
             ]:
                 del st.session_state[_k]
-            # Réinitialiser les états de run (génération, simulation, run complet).
+            # Reset run states (generation, simulation, full run).
             for _k in (
                 "gen_running",
                 "gen_done",
@@ -186,20 +186,20 @@ def render_tab_config() -> None:
 
     active_path = st.session_state.get("toml_active_path") or "—"
     if active_path != "—":
-        st.caption(f"Config active : `{active_path}`")
+        st.caption(f"Active config: `{active_path}`")
     else:
-        st.caption("Aucune configuration chargée — utilisez l'import ci-dessus.")
+        st.caption("No configuration loaded — use the import above.")
 
     st.divider()
 
     # -----------------------------------------------------------------------
-    # Section 2 — Paramètres principaux
+    # Section 2 — Main parameters
     # -----------------------------------------------------------------------
-    st.subheader("Paramètres de simulation")
+    st.subheader("Simulation parameters")
 
-    # Appliquer le résultat du sélecteur de dossier AVANT l'instanciation du widget
-    # (on ne peut pas écrire dans session_state[key] après qu'un widget avec ce key
-    # a déjà été rendu dans ce même rerun).
+    # Apply the folder picker result BEFORE instantiating the widget
+    # (we cannot write to session_state[key] after a widget with that key
+    # has already been rendered in the same rerun).
     if "_folder_picker_result" in st.session_state:
         st.session_state["cfg_output_base_path"] = st.session_state.pop("_folder_picker_result")
 
@@ -207,17 +207,17 @@ def render_tab_config() -> None:
 
     with col_path:
         new_path = st.text_input(
-            "Dossier de sortie (output_base_path)",
+            "Output folder (output_base_path)",
             key="cfg_output_base_path",
-            placeholder="Ex : ../data/ ou /home/user/results",
-            help="Répertoire racine pour gen/ et sim_result/. Laissez vide pour utiliser le répertoire courant.",
+            placeholder="E.g.: ../data/ or /home/user/results",
+            help="Root directory for gen/ and sim_result/. Leave empty to use the current directory.",
         )
     cfg["output_base_path"] = new_path
 
     with col_browse:
-        # Espace vertical pour aligner le bouton avec le text_input
+        # Vertical space to align the button with the text_input
         st.markdown("<div style='margin-top:28px'></div>", unsafe_allow_html=True)
-        if st.button("📁", help="Ouvrir un sélecteur de dossier", key="cfg_browse_btn"):
+        if st.button("📁", help="Open a folder picker", key="cfg_browse_btn"):
             try:
                 import tkinter as tk
                 from tkinter import filedialog
@@ -225,49 +225,49 @@ def render_tab_config() -> None:
                 root = tk.Tk()
                 root.withdraw()
                 root.wm_attributes("-topmost", 1)
-                folder = filedialog.askdirectory(title="Choisir le dossier de sortie")
+                folder = filedialog.askdirectory(title="Choose the output folder")
                 root.destroy()
                 if folder:
-                    # Stocker dans une clé temporaire — sera appliquée au prochain rerun
-                    # AVANT l'instanciation du widget cfg_output_base_path.
+                    # Store in a temporary key — will be applied on the next rerun
+                    # BEFORE instantiating the cfg_output_base_path widget.
                     st.session_state["_folder_picker_result"] = folder
                     st.rerun()
             except Exception as exc:
-                st.error(f"Sélecteur de dossier indisponible : {exc}")
+                st.error(f"Folder picker unavailable: {exc}")
 
     with col_seed:
         new_seed = st.number_input(
-            "Seed aléatoire",
+            "Random seed",
             min_value=0,
             max_value=2**31 - 1,
             value=None,
             step=1,
             key="cfg_seed",
-            placeholder="Aléatoire si vide",
-            help="Graine pour la reproductibilité. Laissez vide pour une seed aléatoire.",
+            placeholder="Random if empty",
+            help="Seed for reproducibility. Leave empty for a random seed.",
         )
     cfg["seed"] = int(new_seed) if new_seed is not None else None
 
     st.divider()
 
     # -----------------------------------------------------------------------
-    # Section 3 — Aperçu TOML (réutilise toml_content déjà calculé ci-dessus)
+    # Section 3 — TOML preview (reuses toml_content already computed above)
     # -----------------------------------------------------------------------
-    st.subheader("Aperçu du TOML courant")
+    st.subheader("Current TOML preview")
     st.code(toml_content, language="toml")
 
     # -----------------------------------------------------------------------
-    # Section 4 — Paramètres avancés par modèle
+    # Section 4 — Advanced per-model parameters
     # -----------------------------------------------------------------------
-    with st.expander("Paramètres avancés par modèle (generator_params)", expanded=False):
+    with st.expander("Advanced per-model parameters (generator_params)", expanded=False):
         st.caption(
-            "Les paramètres ici correspondent aux sous-tables `[generator_params.<MODEL>]` du TOML. "
-            "Ils sont facultatifs — laissez vide pour utiliser les valeurs par défaut."
+            "The parameters here correspond to `[generator_params.<MODEL>]` sub-tables in the TOML. "
+            "They are optional — leave empty to use the default values."
         )
 
         gen_models = cfg.get("generative_models", [])
         if not gen_models:
-            st.info("Sélectionnez d'abord des modèles génératifs dans l'onglet **Données**.")
+            st.info("Select generative models first in the **Data** tab.")
         else:
             gp = cfg.get("generator_params", {})
             for model in gen_models:
@@ -279,7 +279,7 @@ def render_tab_config() -> None:
 
 
 def _render_model_params(model: str, current: dict, gp: dict) -> None:
-    """Affiche les champs de paramètres pour un modèle donné."""
+    """Renders the parameter fields for a given model."""
     KNOWN_PARAMS: dict[str, dict] = {
         "VMF_HC": {"vmf_concentration": ("Concentration VMF", 10.0, 0.01, 1000.0)},
         "VMF_HS": {
@@ -291,13 +291,13 @@ def _render_model_params(model: str, current: dict, gp: dict) -> None:
         "GAUSS": {"sigma": ("Sigma", 1.0, 0.001, 100.0)},
         "SPHEROID": {"stretching": ("Stretching", 1.0, 0.01, 100.0)},
         "PERTURB": {"theta": ("Theta", 0.1, 0.0, 1.0)},
-        "UFR": {"n_max_rankings": ("Nb max rankings", 4, 1, 100)},
-        "LADDER": {"n_rungs": ("Nb de barreaux", 21, 2, 200)},
+        "UFR": {"n_max_rankings": ("Max rankings", 4, 1, 100)},
+        "LADDER": {"n_rungs": ("Number of rungs", 21, 2, 200)},
     }
 
     params_def = KNOWN_PARAMS.get(model, {})
     if not params_def:
-        st.caption(f"Aucun paramètre avancé connu pour {model}.")
+        st.caption(f"No known advanced parameters for {model}.")
         return
 
     updated: dict = dict(current)

@@ -1,6 +1,6 @@
-"""Onglet 4 — Résultats.
+"""Tab 4 — Results.
 
-Utilise exclusivement les méthodes natives du projet :
+Uses exclusively the project's native methods:
   - SimulationSeriesResult : plot_mean_distance_matrix, plot_rules_2d, plot_rules_3d,
                              mean_distance_matrix_frame, metrics_summary_frame
   - SimulationTotalResult  : plot_mean_distance_matrix, plot_metric_heatmap,
@@ -22,12 +22,12 @@ import numpy as np
 import streamlit as st
 
 # ---------------------------------------------------------------------------
-# Helpers : scan + chargement
+# Helpers: scan + loading
 # ---------------------------------------------------------------------------
 
 
 def _scan_sim_result(base_path: str) -> dict[str, dict[str, list[int]]]:
-    """Retourne {model: {str(n_v): [n_c, …]}} depuis sim_result/ et results/.
+    """Returns {model: {str(n_v): [n_c, …]}} from sim_result/ and results/.
 
     - sim_result/{MODEL}_v{NV}_c{NC}/*.parquet  (legacy per-iteration format)
     - results/{MODEL}_v{NV}_c{NC}_i*.parquet    (series cache written by simulation_instance)
@@ -72,11 +72,11 @@ def _scan_sim_result(base_path: str) -> dict[str, dict[str, list[int]]]:
 
 
 def _load_series(base_path: str, model: str, n_v: int, n_c: int) -> Any:
-    """Charge les Parquet d'un dossier ou fichier cache comme SimulationSeriesResult.
+    """Loads Parquet files from a folder or cache file as a SimulationSeriesResult.
 
-    Essaie dans l'ordre :
-    1. sim_result/{model}_v{n_v}_c{n_c}/*.parquet  (fichiers per-iteration)
-    2. results/{model}_v{n_v}_c{n_c}_i*.parquet    (fichier cache série complète)
+    Tries in order:
+    1. sim_result/{model}_v{n_v}_c{n_c}/*.parquet  (per-iteration files)
+    2. results/{model}_v{n_v}_c{n_c}_i*.parquet    (full-series cache file)
     """
     from vote_simulation.models.results.result_config import ResultConfig
     from vote_simulation.models.results.series_result import SimulationSeriesResult
@@ -128,12 +128,12 @@ def _load_total(
     *,
     session_cache: Any | None = None,
 ) -> Any:
-    """Charge toutes les séries disponibles dans un SimulationTotalResult.
+    """Loads all available series into a SimulationTotalResult.
 
-    Si *session_cache* est fourni (typiquement ``st.session_state``), chaque
-    série chargée est aussi stockée individuellement sous la clé
-    ``_series_{base_path}_{model}_{nv_str}_{n_c}`` afin que le rendu de
-    l'onglet Résultats n'ait pas à relire les parquets.
+    If *session_cache* is provided (typically ``st.session_state``), each
+    loaded series is also stored individually under the key
+    ``_series_{base_path}_{model}_{nv_str}_{n_c}`` so that the Results tab
+    rendering does not need to re-read the parquets.
     """
     from vote_simulation.models.results.total_result import SimulationTotalResult
 
@@ -154,12 +154,12 @@ def _load_total(
 
 
 def _total_result_dir(base_path: str) -> str:
-    """Chemin du répertoire de sauvegarde du SimulationTotalResult agrégé."""
+    """Path to the save directory of the aggregated SimulationTotalResult."""
     return str(Path(base_path) / "results" / "_total_result")
 
 
 def _save_total_to_disk(total: Any, base_path: str) -> None:
-    """Persiste le total sur disque (silencieusement en cas d'erreur)."""
+    """Persists the total to disk (silently ignores errors)."""
     try:
         total.save_to_dir(_total_result_dir(base_path))
     except Exception:
@@ -167,7 +167,7 @@ def _save_total_to_disk(total: Any, base_path: str) -> None:
 
 
 def _load_total_from_disk(base_path: str) -> Any | None:
-    """Charge le total depuis le répertoire persisté, ou retourne None."""
+    """Loads the total from the persisted directory, or returns None."""
     from vote_simulation.models.results.total_result import SimulationTotalResult
 
     d = _total_result_dir(base_path)
@@ -180,7 +180,7 @@ def _load_total_from_disk(base_path: str) -> Any | None:
 
 
 def _delete_total_from_disk(base_path: str) -> None:
-    """Supprime le répertoire du total persisté."""
+    """Deletes the persisted total directory."""
     from vote_simulation.models.results.total_result import SimulationTotalResult
 
     SimulationTotalResult.delete_dir(_total_result_dir(base_path))
@@ -192,7 +192,7 @@ def _apply_filter(
     voters: list[int],
     cands: list[int],
 ) -> Any:
-    """Filtre via copie superficielle de _entries — O(n) références, zéro recopie de données."""
+    """Filters via a shallow copy of _entries — O(n) references, zero data copy."""
     from vote_simulation.models.results.total_result import SimulationTotalResult
 
     models_s = set(models)
@@ -247,7 +247,7 @@ def _cached_plot(
     export_key: str,
     filename: str,
 ) -> None:
-    """Exécute plot_fn() une seule fois et met le PNG en cache session_state."""
+    """Executes plot_fn() once and caches the PNG in session_state."""
     if cache_key not in st.session_state:
         try:
             ax_or_axes = plot_fn()
@@ -279,7 +279,7 @@ def _cached_plot(
         _img_col, _ = st.columns([1, 1])
         _img_col.image(val, width="stretch")
         st.download_button(
-            "Exporter PNG",
+            "Export PNG",
             data=val,
             file_name=filename,
             mime="image/png",
@@ -288,12 +288,12 @@ def _cached_plot(
 
 
 def _df_csv_export(df: Any, key: str, filename: str) -> None:
-    """Bouton de téléchargement CSV pour un DataFrame (ou Styler)."""
+    """CSV download button for a DataFrame (or Styler)."""
     if hasattr(df, "data"):  # pandas Styler → DataFrame sous-jacent
         df = df.data
     csv_bytes = df.to_csv(index=True).encode("utf-8")
     st.download_button(
-        "Exporter CSV",
+        "Export CSV",
         data=csv_bytes,
         file_name=filename,
         mime="text/csv",
@@ -302,7 +302,7 @@ def _df_csv_export(df: Any, key: str, filename: str) -> None:
 
 
 def _build_global_dist_df(total_f: Any) -> Any:
-    """Construit la matrice de distance moyenne inter-règles pour un SimulationTotalResult."""
+    """Builds the mean inter-rule distance matrix for a SimulationTotalResult."""
     import pandas as pd
 
     all_rules: list[str] = []
@@ -331,7 +331,7 @@ def _build_global_dist_df(total_f: Any) -> Any:
 
 
 def _build_global_metrics_df(total_f: Any, metrics: list[str] | None = None, stat: str = "mean") -> Any:
-    """Construit la matrice (règles × métriques) moyenne pour un SimulationTotalResult."""
+    """Builds the (rules × metrics) mean matrix for a SimulationTotalResult."""
     import pandas as pd
 
     from vote_simulation.models.rules.winner_metrics import METRIC_FIELDS
@@ -369,7 +369,7 @@ def _build_global_metrics_df(total_f: Any, metrics: list[str] | None = None, sta
 
 
 def _third_param_filter(total_f: Any, row_p: str, col_p: str, key_prefix: str) -> Any:
-    """Filtre le total sur le 3ème paramètre si nécessaire pour plot_metric_heatmap."""
+    """Filters the total on the 3rd parameter if needed for plot_metric_heatmap."""
     PARAMS = ["gen_model", "n_voters", "n_candidates"]
     third_p = next(p for p in PARAMS if p not in (row_p, col_p))
     vals_map: dict[str, list] = {
@@ -380,7 +380,7 @@ def _third_param_filter(total_f: Any, row_p: str, col_p: str, key_prefix: str) -
     third_vals = vals_map[third_p]
     if len(third_vals) > 1:
         sel = st.selectbox(
-            f"Fixer `{third_p}` (requis — 2 axes déjà pris)",
+            f"Fix `{third_p}` (required — 2 axes already taken)",
             third_vals,
             key=f"{key_prefix}_third",
         )
@@ -394,22 +394,21 @@ def _third_param_filter(total_f: Any, row_p: str, col_p: str, key_prefix: str) -
 
 
 def render_tab_results() -> None:
-    st.header("Résultats")
-    st.caption("Exploration via les méthodes natives `SimulationSeriesResult` et `SimulationTotalResult`.")
+    st.header("Results")
+    st.caption("Exploration via the native `SimulationSeriesResult` and `SimulationTotalResult` methods.")
 
-    # Pendant un Run complet, on évite de lire les 18 000 parquets existants :
-    # _load_total() bloquerait le thread principal 20-60 s et figerait la barre.
+    # During a Full run, avoid reading all existing parquets:
+    # _load_total() would block the main thread for 20-60 s and freeze the progress bar.
     if st.session_state.get("full_run_running"):
-        st.info("⏳ Run complet en cours — les résultats seront disponibles à la fin.")
+        st.info("⏳ Full run in progress — results will be available at the end.")
         return
 
     cfg: dict = st.session_state["cfg"]
     base_path = str(Path(cfg.get("output_base_path", "../data/")).resolve())
 
-    # Cache du scan filesystem : évite de reglobler les dossiers à chaque rerun.
-    # La clé est effacée par le handler du bouton Run complet, donc après
-    # chaque simulation, le premier affichage re-scanne pour inclure les
-    # nouveaux résultats.
+    # Cache of the filesystem scan: avoids re-globbing folders on every rerun.
+    # The key is cleared by the Full run button handler, so after each simulation
+    # the first display re-scans to include new results.
     _scan_key = f"_scan_struct_{base_path}"
     if _scan_key not in st.session_state:
         st.session_state[_scan_key] = _scan_sim_result(base_path)
@@ -417,34 +416,33 @@ def render_tab_results() -> None:
 
     if not structure:
         st.info(
-            f"Aucun résultat dans `{base_path}/sim_result/`.\n\nLancez une simulation dans l'onglet **Simulation**."
+            f"No results in `{base_path}/sim_result/`.\n\nLaunch a simulation in the **Simulation** tab."
         )
         return
 
-    # ── Cache du total dans la session ──────────────────────────────────────
+    # ── Session cache of the total ──────────────────────────────────────────
     cache_key = f"_res_total_{base_path}"
 
-    # Priorité 1 : résultat en mémoire construit pendant la simulation courante.
-    # Évite de lire tous les Parquet depuis le disque après un Run complet.
+    # Priority 1: in-memory result built during the current simulation.
+    # Avoids reading all Parquet files from disk after a Full run.
     if cache_key not in st.session_state and "sim_total_result" in st.session_state:
         total_from_sim = st.session_state["sim_total_result"]
         st.session_state[cache_key] = total_from_sim
         # Persist to disk so next session loads directly from the saved total.
         _save_total_to_disk(total_from_sim, base_path)
 
-    # Priorité 2 : chargement depuis le répertoire total persisté (rapide — une
-    # parquet par série avec métriques incluses, pas besoin de relire toutes les
-    # itérations individuelles).
+    # Priority 2: load from the persisted total directory (fast — one parquet
+    # per series with metrics included, no need to re-read all individual iterations).
     if cache_key not in st.session_state:
         saved = _load_total_from_disk(base_path)
         if saved is not None and saved.series_count > 0:
             st.session_state[cache_key] = saved
 
-    # Priorité 3 : chargement depuis le disque (premier affichage ou données existantes).
-    # session_cache=st.session_state : chaque série chargée est aussi mise en cache
-    # individuellement → zéro double-lecture parquet dans l'onglet "Analyse d'une série".
+    # Priority 3: load from disk (first display or existing data).
+    # session_cache=st.session_state: each loaded series is also cached
+    # individually → zero double parquet reads in the "Series analysis" tab.
     if cache_key not in st.session_state:
-        with st.spinner("Chargement initial de tous les résultats…"):
+        with st.spinner("Initial loading of all results…"):
             loaded = _load_total(base_path, structure, session_cache=st.session_state)
             st.session_state[cache_key] = loaded
             # Persist the aggregated total (with metrics) for faster future loads.
@@ -453,7 +451,7 @@ def render_tab_results() -> None:
 
     total: Any = st.session_state[cache_key]
 
-    tab_serie, tab_global, tab_manage = st.tabs(["Analyse d'une série", "Vue globale", "Gestion des données"])
+    tab_serie, tab_global, tab_manage = st.tabs(["Series analysis", "Global view", "Data management"])
 
     # ══════════════════════════════════════════════════════════════════════════
     # Onglet A — Analyse d'une série
@@ -560,12 +558,12 @@ def render_tab_results() -> None:
             msf = series_v.metrics_summary_frame
             if msf.empty:
                 st.info(
-                    "Les métriques des gagnants ne sont pas disponibles pour cette série.\n\n"
-                    "Elles sont calculées lors d'un **Run complet** "
-                    "(onglet Configuration → bouton **Run complet**)."
+                    "Winner metrics are not available for this series.\n\n"
+                    "They are computed during a **Full run** "
+                    "(Configuration tab → **Full run** button)."
                 )
             else:
-                # Enveloppe la série filtrée dans un SimulationTotalResult pour utiliser
+                # Wrap the filtered series in a SimulationTotalResult to use
                 # plot_metrics_rules_matrix
                 _total_one_key = f"_total_one_{view_tag}"
                 if _total_one_key not in st.session_state:
@@ -577,14 +575,14 @@ def render_tab_results() -> None:
                 avail_mf = [f for f in _MF if any(c.startswith(f + "_") for c in msf.columns)]
                 mc1, mc2 = st.columns([3, 1])
                 sel_mf_sm = mc1.multiselect(
-                    "Métriques à afficher",
+                    "Metrics to display",
                     options=avail_mf,
                     default=avail_mf,
                     key=f"sm_mf_{view_tag}",
                 )
-                stat_sm = mc2.radio("Statistique", ["mean", "std"], horizontal=True, key=f"sm_stat_{view_tag}")
+                stat_sm = mc2.radio("Statistic", ["mean", "std"], horizontal=True, key=f"sm_stat_{view_tag}")
                 if not sel_mf_sm:
-                    st.info("Sélectionnez au moins une métrique.")
+                    st.info("Select at least one metric.")
                 else:
                     _sm_key = f"_plt_sm_{view_tag}_{sorted(sel_mf_sm)}_{stat_sm}"
                     _cached_plot(
@@ -664,26 +662,26 @@ def render_tab_results() -> None:
                     or (isinstance(_k, str) and _k.startswith("_g_met_df_"))
                 ):
                     del st.session_state[_k]
-            # Supprimer aussi le cache disque du total agrégé pour forcer la
-            # reconstruction depuis les séries individuelles (inclut nouvelles séries).
+            # Also delete the disk cache of the aggregated total to force
+            # reconstruction from individual series (includes new series).
             _delete_total_from_disk(base_path)
             st.rerun()
 
-        # Filtres avec bouton Appliquer pour éviter toute recomputation à chaque widget
+        # Filters with an Apply button to avoid recomputation on every widget change
         _fk_models = "gf_m_applied"
         _fk_voters = "gf_v_applied"
         _fk_cands = "gf_c_applied"
-        # Valeurs appliquées courantes (defaults : tout sélectionné)
+        # Currently applied values (defaults: all selected)
         applied_models = st.session_state.get(_fk_models, list(total.gen_models))
         applied_voters = st.session_state.get(_fk_voters, list(total.voter_counts))
         applied_cands = st.session_state.get(_fk_cands, list(total.candidate_counts))
 
-        with st.expander("Filtres", expanded=True):
+        with st.expander("Filters", expanded=True):
             fc1, fc2, fc3, fc4 = st.columns([3, 3, 3, 1])
-            f_models = fc1.multiselect("Modèles", total.gen_models, default=applied_models, key="gf_m")
-            f_voters = fc2.multiselect("Votants", total.voter_counts, default=applied_voters, key="gf_v")
-            f_cands = fc3.multiselect("Candidats", total.candidate_counts, default=applied_cands, key="gf_c")
-            if fc4.button("Appliquer", key="btn_apply_filters", width="stretch"):
+            f_models = fc1.multiselect("Models", total.gen_models, default=applied_models, key="gf_m")
+            f_voters = fc2.multiselect("Voters", total.voter_counts, default=applied_voters, key="gf_v")
+            f_cands = fc3.multiselect("Candidates", total.candidate_counts, default=applied_cands, key="gf_c")
+            if fc4.button("Apply", key="btn_apply_filters", width="stretch"):
                 new_models = f_models or list(total.gen_models)
                 new_voters = f_voters or list(total.voter_counts)
                 new_cands = f_cands or list(total.candidate_counts)
@@ -738,7 +736,7 @@ def render_tab_results() -> None:
         _applied_rules_g = [r for r in _applied_rules_g if r in _all_rules_g] or _all_rules_g
 
         sel_rules_g = st.multiselect(
-            "Règles à afficher",
+            "Rules to display",
             options=_all_rules_g,
             default=_applied_rules_g,
             key=f"gf_r_{_filter_cache_key}",
@@ -797,7 +795,7 @@ def render_tab_results() -> None:
                 st.session_state[_g_dist_df_key] = _build_global_dist_df(total_fr)
             _g_dist_df = st.session_state[_g_dist_df_key]
             if not _g_dist_df.empty:
-                st.markdown("**Matrice de distance moyenne** (%)")
+                st.markdown("**Mean distance matrix** (%)")
                 st.dataframe(
                     _g_dist_df.style.background_gradient(cmap="Reds", vmin=0, vmax=100).format("{:.1f}"),
                     width="stretch",
@@ -834,7 +832,7 @@ def render_tab_results() -> None:
                     st.session_state[_g_met_df_key] = _build_global_metrics_df(total_fr, metrics=sel_gm, stat=stat_gm)
                 _g_met_df = st.session_state[_g_met_df_key]
                 if not _g_met_df.empty:
-                    st.markdown("**Données brutes** (règles × métriques)")
+                    st.markdown("**Raw data** (rules × metrics)")
                     st.dataframe(
                         _g_met_df.style.background_gradient(cmap="Blues", axis=0).format("{:.4f}"),
                         width="stretch",
@@ -895,17 +893,17 @@ def render_tab_results() -> None:
             avail_rules: list[str] = st.session_state[_rules_cache_key]
 
             if len(avail_rules) < 2:
-                st.info("Au moins 2 règles nécessaires.")
+                st.info("At least 2 rules required.")
             else:
                 pc1, pc2 = st.columns(2)
-                rule_a = pc1.selectbox("Règle A", avail_rules, index=0, key="pair_a")
+                rule_a = pc1.selectbox("Rule A", avail_rules, index=0, key="pair_a")
                 rule_b_opts = [r for r in avail_rules if r != rule_a]
-                rule_b = pc2.selectbox("Règle B", rule_b_opts, index=0, key="pair_b")
+                rule_b = pc2.selectbox("Rule B", rule_b_opts, index=0, key="pair_b")
 
                 pr1, pr2 = st.columns(2)
-                rp_pair = pr1.selectbox("Axe lignes", PARAMS, index=0, key="pair_row")
+                rp_pair = pr1.selectbox("Row axis", PARAMS, index=0, key="pair_row")
                 cp_pair = pr2.selectbox(
-                    "Axe colonnes",
+                    "Column axis",
                     [p for p in PARAMS if p != rp_pair],
                     index=0,
                     key="pair_col",
@@ -981,15 +979,15 @@ def render_tab_results() -> None:
             n_files = len(_del_res_files) + len(_del_sim_files) + (1 if _del_total_file.is_file() else 0)
             if n_files > 0:
                 st.warning(
-                    f"Fichiers qui seront supprimés : **{n_files}** "
-                    f"({len(_del_res_files)} résultats, {len(_del_sim_files)} itérations individuelles, "
-                    f"{'1 entrée du cache total' if _del_total_file.is_file() else '0 entrée du cache total'})"
+                    f"Files that will be deleted: **{n_files}** "
+                    f"({len(_del_res_files)} results, {len(_del_sim_files)} individual iterations, "
+                    f"{'1 total cache entry' if _del_total_file.is_file() else '0 total cache entries'})"
                 )
             else:
-                st.info("Aucun fichier trouvé pour cette combinaison.")
+                st.info("No files found for this combination.")
 
             if st.button(
-                f"🗑️ Supprimer {del_model} v{del_voters} c{del_cands}",
+                f"🗑️ Delete {del_model} v{del_voters} c{del_cands}",
                 key="btn_del_series",
                 disabled=(n_files == 0),
                 type="primary",
@@ -1067,5 +1065,5 @@ def render_tab_results() -> None:
                 ):
                     del st.session_state[_k]
             st.session_state.pop("sim_total_result", None)
-            st.success(f"Suppression effectuée ({_del_count} dossier(s) supprimé(s)).")
+            st.success(f"Deletion done ({_del_count} folder(s) removed).")
             st.rerun()

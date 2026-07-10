@@ -1,8 +1,8 @@
-"""Onglet 3 — Simulation (règles de vote).
+"""Tab 3 — Simulation (voting rules).
 
-Permet de sélectionner les règles de vote organisées par famille,
-de choisir la source des données, et de lancer simulation_from_config()
-dans un thread séparé avec suivi de progression.
+Allows selecting voting rules organised by family,
+choosing the data source, and launching simulation_from_config()
+in a separate thread with progress tracking.
 """
 
 from __future__ import annotations
@@ -59,15 +59,15 @@ def _cached_family_map() -> dict[str, list[str]]:
 # Familles de règles — mapping préfixe → famille
 # ---------------------------------------------------------------------------
 
-# Ordre affiché dans l'UI
+# Displayed order in the UI
 _FAMILIES: list[tuple[str, str]] = [
-    ("Pluralité / IRV", "PLURALITY_IRV"),
+    ("Plurality / IRV", "PLURALITY_IRV"),
     ("Condorcet", "CONDORCET"),
     ("Score / Borda", "SCORE_BORDA"),
-    ("Jugement / Score continu", "JUDGMENT"),
-    ("Approbation — seuil", "AP_THRESHOLD"),
-    ("Approbation — K", "AP_K"),
-    ("Autres", "OTHER"),
+    ("Judgment / Continuous score", "JUDGMENT"),
+    ("Approval — threshold", "AP_THRESHOLD"),
+    ("Approval — K", "AP_K"),
+    ("Others", "OTHER"),
 ]
 
 _FAMILY_PREFIXES: dict[str, list[str]] = {
@@ -111,7 +111,7 @@ _FAMILY_PREFIXES: dict[str, list[str]] = {
 
 
 def _classify_rule(code: str) -> str:
-    """Retourne la famille d'une règle à partir de son code."""
+    """Returns the family of a rule from its code."""
     upper = code.upper()
     for family_id, prefixes in _FAMILY_PREFIXES.items():
         for pfx in prefixes:
@@ -121,7 +121,7 @@ def _classify_rule(code: str) -> str:
 
 
 def _build_family_map(all_codes: list[str]) -> dict[str, list[str]]:
-    """Construit un dictionnaire famille → liste de codes."""
+    """Builds a dictionary family → list of codes."""
     family_map: dict[str, list[str]] = {fid: [] for _, fid in _FAMILIES}
     for code in all_codes:
         fid = _classify_rule(code)
@@ -162,7 +162,7 @@ def _init_sim_state() -> None:
 
 
 def _run_simulation(config_path: str, stop_event: threading.Event, log_q: queue.Queue, reload: bool = False) -> None:
-    """Cible du thread : lance simulation_series_from_config() avec capture des logs."""
+    """Thread target: launches simulation_series_from_config() with log capture."""
     import tqdm as tqdm_module
 
     import vote_simulation.simulation.simulation as _sim_module
@@ -186,7 +186,7 @@ def _run_simulation(config_path: str, stop_event: threading.Event, log_q: queue.
             self.n += n
             if stop_event.is_set():
                 self.close()
-                raise InterruptedError("Simulation annulée par l'utilisateur.")
+                raise InterruptedError("Simulation cancelled by user.")
             if self._track:
                 now = time.monotonic()
                 if now - self._last_st_update >= 0.15:
@@ -197,22 +197,22 @@ def _run_simulation(config_path: str, stop_event: threading.Event, log_q: queue.
             return None
 
     tqdm_module.tqdm = _PatchedTqdm  # type: ignore[assignment]
-    _sim_module.tqdm = _PatchedTqdm  # type: ignore[assignment]  # corrige la liaison `from tqdm import tqdm`
+    _sim_module.tqdm = _PatchedTqdm  # type: ignore[assignment]  # fixes the `from tqdm import tqdm` binding
     old_stdout = sys.stdout
     sys.stdout = QueueWriter(log_q)
 
     try:
         simulation_series_from_config(config_path, reload=reload)
 
-        log_q.put("Simulation terminee.")
+        log_q.put("Simulation done.")
         st.session_state[_SIM_DONE_KEY] = True
         st.session_state[_SIM_ERROR_KEY] = None
     except InterruptedError as exc:
-        log_q.put(f"Annule : {exc}")
+        log_q.put(f"Cancelled: {exc}")
         st.session_state[_SIM_DONE_KEY] = True
-        st.session_state[_SIM_ERROR_KEY] = "Annulé"
+        st.session_state[_SIM_ERROR_KEY] = "Cancelled"
     except Exception as exc:
-        log_q.put(f"Erreur : {exc}")
+        log_q.put(f"Error: {exc}")
         st.session_state[_SIM_DONE_KEY] = True
         st.session_state[_SIM_ERROR_KEY] = str(exc)
     finally:
@@ -277,47 +277,47 @@ def _invalidate_results_cache(base_path: str) -> None:
 
 
 def render_tab_simulation() -> None:
-    """Rend l'onglet Simulation."""
+    """Renders the Simulation tab."""
     _init_sim_state()
 
-    st.header("Simulation — Règles de vote")
-    st.caption("Sélectionnez les règles à appliquer puis lancez la simulation depuis la barre globale.")
+    st.header("Simulation — Voting rules")
+    st.caption("Select the rules to apply then launch the simulation from the global bar.")
 
     cfg: dict = st.session_state["cfg"]
 
     # -----------------------------------------------------------------------
-    # 3.1 Chargement dynamique des règles
+    # 3.1 Dynamic loading of rules
     # -----------------------------------------------------------------------
     all_codes = _cached_rule_codes()
     family_map = _cached_family_map()
 
-    # Synchronisation explicite depuis cfg après un chargement externe (upload TOML,
-    # réinitialisation). Streamlit restaure les valeurs du navigateur (stale, souvent [])
-    # au lieu d'utiliser default= quand les clés session_state ont été effacées.
-    # On contourne cela en écrivant directement les bonnes valeurs dans session_state
-    # AVANT de rendre les multiselects.
+    # Explicit sync from cfg after an external load (TOML upload, reset).
+    # Streamlit restores browser values (stale, often []) instead of using
+    # default= when session_state keys have been cleared.
+    # We work around this by writing the correct values directly into
+    # session_state BEFORE rendering the multiselects.
     if st.session_state.pop("_cfg_rules_needs_sync", False):
         loaded_rules = cfg.get("rule_codes", [])
         for _, family_id in _FAMILIES:
             codes_in_family = family_map.get(family_id, [])
             st.session_state[f"rules_family_{family_id}"] = [c for c in codes_in_family if c in loaded_rules]
 
-    # Boutons rapides
+    # Quick-select buttons
     col_all, col_none = st.columns(2)
     with col_all:
-        if st.button("Tout sélectionner", key="sim_select_all"):
+        if st.button("Select all", key="sim_select_all"):
             cfg["rule_codes"] = list(all_codes)
             for _, family_id in _FAMILIES:
                 st.session_state[f"rules_family_{family_id}"] = family_map.get(family_id, [])
             st.rerun()
     with col_none:
-        if st.button("Tout désélectionner", key="sim_deselect_all"):
+        if st.button("Deselect all", key="sim_deselect_all"):
             cfg["rule_codes"] = []
             for _, family_id in _FAMILIES:
                 st.session_state[f"rules_family_{family_id}"] = []
             st.rerun()
 
-    st.subheader("Sélection des règles par famille")
+    st.subheader("Rule selection by family")
     new_selection_family_order: list[str] = []  # accumulation in family order (for new-rule detection)
 
     for family_label, family_id in _FAMILIES:
@@ -326,26 +326,26 @@ def render_tab_simulation() -> None:
             continue
 
         with st.expander(
-            f"{family_label} ({len(codes_in_family)} règles)", expanded=(family_id in ("PLURALITY_IRV", "SCORE_BORDA"))
+            f"{family_label} ({len(codes_in_family)} rules)", expanded=(family_id in ("PLURALITY_IRV", "SCORE_BORDA"))
         ):
-            # Boutons select/deselect pour cette famille
+            # Select/deselect buttons for this family
             fc1, fc2 = st.columns(2)
             with fc1:
-                if st.button(f"Tout — {family_label}", key=f"sel_all_{family_id}"):
+                if st.button(f"All — {family_label}", key=f"sel_all_{family_id}"):
                     existing_ordered = cfg.get("rule_codes", [])
                     existing_set = set(existing_ordered)
                     cfg["rule_codes"] = existing_ordered + [c for c in codes_in_family if c not in existing_set]
                     st.session_state[f"rules_family_{family_id}"] = codes_in_family
                     st.rerun()
             with fc2:
-                if st.button(f"Aucun — {family_label}", key=f"sel_none_{family_id}"):
+                if st.button(f"None — {family_label}", key=f"sel_none_{family_id}"):
                     to_remove = set(codes_in_family)
                     cfg["rule_codes"] = [r for r in cfg.get("rule_codes", []) if r not in to_remove]
                     st.session_state[f"rules_family_{family_id}"] = []
                     st.rerun()
 
             chosen = st.multiselect(
-                "Règles",
+                "Rules",
                 options=codes_in_family,
                 default=None,
                 key=f"rules_family_{family_id}",
@@ -355,10 +355,10 @@ def render_tab_simulation() -> None:
             new_selection_family_order.extend(chosen)
 
     # ────────────────────────────────────────────────────────────────────────
-    # Mettre à jour cfg en préservant l'ordre personnalisé :
-    #   - les règles déjà présentes conservent leur position,
-    #   - les règles nouvellement ajoutées sont appendées à la fin (ordre famille),
-    #   - les règles désélectionnées sont retirées.
+    # Update cfg preserving custom order:
+    #   - already present rules keep their position,
+    #   - newly added rules are appended at the end (family order),
+    #   - deselected rules are removed.
     new_selected_set = set(new_selection_family_order)
     old_ordered = cfg.get("rule_codes", [])
     preserved_ordered: list[str] = [r for r in old_ordered if r in new_selected_set]
@@ -370,8 +370,8 @@ def render_tab_simulation() -> None:
     cfg["rule_codes"] = preserved_ordered
     selected_rules = preserved_ordered  # alias for the rest of the tab
 
-    # Résumé
-    st.info(f"**{len(selected_rules)} règle(s) sélectionnée(s)** sur {len(all_codes)} disponibles.")
+    # Summary
+    st.info(f"**{len(selected_rules)} rule(s) selected** out of {len(all_codes)} available.")
 
     # -----------------------------------------------------------------------
     # Feedback
@@ -382,9 +382,9 @@ def render_tab_simulation() -> None:
 
 @st.fragment(run_every=1)
 def _render_sim_feedback() -> None:
-    """Fragment Streamlit (run_every=1 s) — seule cette zone se ré-exécute pendant
-    la simulation, sans retoucher les onglets Données/Configuration ni leurs widgets.
-    Un unique rerun complet est déclenché à la fin pour rafraîchir l'état global.
+    """Streamlit fragment (run_every=1 s) — only this zone re-executes during
+    the simulation, without touching the Data/Configuration tabs or their widgets.
+    A single full rerun is triggered at the end to refresh the global state.
     """
     is_running: bool = st.session_state.get(_SIM_RUNNING_KEY, False)
     is_done: bool = st.session_state.get(_SIM_DONE_KEY, False)
@@ -406,13 +406,13 @@ def _render_sim_feedback() -> None:
     current, total = progress_tuple
     if total > 0:
         pct = min(current / total, 1.0)
-        st.progress(pct, text=f"Progression : {current}/{total} profils simulés")
+        st.progress(pct, text=f"Progress: {current}/{total} profiles simulated")
     elif is_running:
-        st.progress(0.0, text="Initialisation de la simulation…")
+        st.progress(0.0, text="Initialising simulation…")
 
     all_logs = st.session_state.get("sim_log_messages", [])
     if all_logs:
-        with st.expander("Logs de simulation", expanded=False):
+        with st.expander("Simulation logs", expanded=False):
             st.text_area(
                 "Logs",
                 value="\n".join(all_logs[-300:]),
@@ -425,10 +425,10 @@ def _render_sim_feedback() -> None:
     if is_done and not is_running:
         cfg: dict = st.session_state["cfg"]
         n_rules = len(cfg.get("rule_codes", []))
-        if error and error != "Annulé":
-            st.error(f"Erreur : {error}")
-        elif error == "Annulé":
-            st.warning("Simulation annulée.")
+        if error and error != "Cancelled":
+            st.error(f"Error: {error}")
+        elif error == "Cancelled":
+            st.warning("Simulation cancelled.")
         else:
             total_profiles = (
                 len(cfg.get("generative_models", []))
@@ -437,13 +437,13 @@ def _render_sim_feedback() -> None:
                 * cfg.get("iterations", 0)
             )
             st.success(
-                f"**Simulation terminée** — {n_rules} règles x {total_profiles:,} profils traités.\n\n"
-                f"Résultats disponibles dans l'onglet Résultats."
+                f"**Simulation complete** — {n_rules} rules × {total_profiles:,} profiles processed.\n\n"
+                f"Results available in the Results tab."
             )
 
-    # Unique rerun complet à la fin — met à jour le statut global et les boutons.
+    # Single full rerun at the end — updates global status and buttons.
     if is_done and not is_running:
         if not st.session_state.get("_sim_final_rerun_done", False):
             st.session_state["_sim_final_rerun_done"] = True
-            st.session_state["_cfg_post_run_restore"] = True  # restaure gen_models
+            st.session_state["_cfg_post_run_restore"] = True  # restores gen_models
             st.rerun()
