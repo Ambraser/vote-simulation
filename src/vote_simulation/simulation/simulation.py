@@ -26,6 +26,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from svvamp import Profile
 from tqdm import tqdm
 
@@ -162,6 +163,10 @@ def run_rules_on_instance(
             reduce runtime when quality metrics are not needed.
     """
     profile = data_instance.profile
+    #base_preferences_ut = np.asarray(profile.preferences_ut, dtype=np.float64)
+    #base_preferences_rk = np.argsort(-base_preferences_ut, axis=1, kind="stable")
+    #labels = list(getattr(profile, "labels_candidates", [str(i) for i in range(base_preferences_ut.shape[1])]))
+
     step = SimulationStepResult(
         data_source=data_instance.file_path,
         config=config or ResultConfig(),
@@ -171,6 +176,11 @@ def run_rules_on_instance(
         normalized = code.strip().upper()
         try:
             builder = get_rule_builder(normalized)
+            # Recreate a fresh profile per rule to avoid state leakage between wrappers.
+            #rule_profile = Profile(
+            #    preferences_ut=base_preferences_ut.copy(),
+            #    labels_candidates=labels,
+            #)
             rule: RuleResult = builder(profile, None)
             winners = rule.cowinners_
             if compute_metrics:

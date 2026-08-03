@@ -13,63 +13,52 @@ The typical workflow is:
 
 The default example config lives in `config/simulation.toml`.
 
-## Minimal import
+## Main entry points
+
+### Run the full pipeline
+
+Generates profiles, applies all configured rules, and saves one result file per iteration.
 
 ```python
-from vote_simulation.simulation import simulation_full
+from vote_simulation.simulation.simulation import simulation_from_config
+
+simulation_from_config("config/simulation.toml")
 ```
 
-## Run the full pipeline
+- Creates or reuses generated profiles under `data/gen/`.
+- Applies every configured rule.
+- Writes per-iteration results under `data/sim_result/`.
 
-This is the main entry point when you want to:
+### Run and get a `SimulationTotalResult` back
 
-- generate synthetic data,
-- run all configured rules,
-- save results to disk.
+Use `simulation_series_from_config` when you want to keep the results in memory for analysis and plotting:
 
 ```python
-from vote_simulation.simulation import simulation_full
+from vote_simulation.simulation.simulation import simulation_series_from_config
 
-simulation_full("config/simulation.toml")
+total = simulation_series_from_config("config/simulation.toml")
+print(total)
 ```
 
-With the default configuration, the pipeline:
+The series results are cached under `data/results/` and reused on subsequent calls.
 
-- reads `config/simulation.toml`,
-- creates or reuses generated profiles under `data/gen/`,
-- applies every configured rule,
-- writes results under `data/sim_result/`.
+### Generate data only
 
-## Generate data only
-
-If you only want the synthetic election profiles:
+Data generation happens automatically inside `simulation_from_config`, but you can also call it on its own:
 
 ```python
-from vote_simulation.simulation import generate_data
+from vote_simulation.simulation.simulation import generate_data
 
 paths = generate_data("config/simulation.toml")
 print(paths[:3])
 ```
 
-This is useful when you want to inspect or reuse generated datasets before running rules.
 
-
-Expected config shape:
+## Example configuration
 
 ```toml
 [simulation]
-rule_codes = ["PLU1", "BORD", "SCHU"]
-output_base_path = "../data"
-```
-
-The result is written under `data/sim/`.
-
-
-## Example generative configuration
-
-```toml
-[simulation]
-output_base_path = "../data/"
+output_base_path = "data"
 generative_models = ["VMF_HC"]
 rule_codes = ["PLU1", "BORD", "SCHU"]
 candidates = [3, 14]
@@ -77,6 +66,7 @@ voters = [11, 101]
 iterations = 10
 seed = 42
 
+# Optional per-model parameters
 [generator_params.VMF_HC]
 vmf_concentration = 10.0
 ```
@@ -99,22 +89,22 @@ vmf_concentration = 10.0
 
 ## Output structure
 
-The full pipeline writes files with this structure:
-
 ```text
 data/
 ├── gen/
 │   └── <MODEL>_v<VOTERS>_c<CANDIDATES>/
 │       ├── iter_0001.parquet
 │       └── ...
-└── sim_result/
-	└── <MODEL>_v<VOTERS>_c<CANDIDATES>/
-		├── iter_0001.parquet
-		└── ...
+├── sim_result/
+│   └── <MODEL>_v<VOTERS>_c<CANDIDATES>/
+│       ├── iter_0001.parquet
+│       └── ...
+└── results/
+    └── <MODEL>_v<VOTERS>_c<CANDIDATES>.parquet   ← series cache
 ```
 
 ## Notes
 
-- Cached generated profiles are reused automatically if the target Parquet file already exists.
-- Rule and generator codes are normalized to uppercase.
-- The CLI entrypoint exists in the repository, but the stable documented workflow for now is the Python API.
+- Generated profiles are cached and reused automatically. Pass `reload=True` to force regeneration.
+- Series results from `simulation_instance` / `simulation_series_from_config` are also cached under `data/results/`. Adding new rules to an existing run only computes the new ones.
+- Rule and generator codes are normalised to uppercase. Unknown codes are skipped with a warning.

@@ -1,60 +1,81 @@
-# Table des codes de règles
+# Rules
 
 All rules expose a `cowinners_` attribute. They are integrated via the `rule_codes` key in `config/simulation.toml`.
 
-## SVVAMP Rules
+## Rule codes
 
-| code | rule | doc SVVAMP | status |
-|---|---|---|---|
-| AP_T | Approval (threshold 0.7) | [rule_approval](https://francois-durand.github.io/svvamp/reference/rules/rule_approval.html) | Tested & validated |
-| AP_K | K-Approval (`k=2`) | [rule_k_approval](https://francois-durand.github.io/svvamp/reference/rules/rule_k_approval.html) | Tested & validated |
-| BALD | Baldwin | [rule_baldwin](https://francois-durand.github.io/svvamp/reference/rules/rule_baldwin.html) | Tested & validated |
-| BLAC | Black | [rule_black](https://francois-durand.github.io/svvamp/reference/rules/rule_black.html) | Tested & validated |
-| BORD | Borda | [rule_borda](https://francois-durand.github.io/svvamp/reference/rules/rule_borda.html) | Tested & validated |
-| BUCK_I | Iterated Bucklin | [rule_iterated_bucklin](https://francois-durand.github.io/svvamp/reference/rules/rule_iterated_bucklin.html) | Tested & validated |
-| BUCK_R | Bucklin | [rule_bucklin](https://francois-durand.github.io/svvamp/reference/rules/rule_bucklin.html) | Tested & validated |
-| CAIR | Condorcet Abs IRV | [rule_condorcet_abs_irv](https://francois-durand.github.io/svvamp/reference/rules/rule_condorcet_abs_irv.html) | Tested & validated |
-| COOM | Coombs | [rule_coombs](https://francois-durand.github.io/svvamp/reference/rules/rule_coombs.html) | Tested & validated |
-| COND | Condorcet | — | Tested & validated |
-| COPE | Copeland | [rule_copeland](https://francois-durand.github.io/svvamp/reference/rules/rule_copeland.html) | Tested & validated |
-| CSUM | Condorcet Sum Defeats | [rule_condorcet_sum_defeats](https://francois-durand.github.io/svvamp/reference/rules/rule_condorcet_sum_defeats.html) | Tested & validated |
-| CVIR | Condorcet Vtb IRV | [rule_condorcet_vtb_irv](https://francois-durand.github.io/svvamp/reference/rules/rule_condorcet_vtb_irv.html) | Tested & validated |
-| DODG_C | Dodgson (C) | |❌ Not implemented |
-| DODG_S | Dodgson (S) | [rule_dodgson](https://francois-durand.github.io/svvamp/reference/rules/rule_dodgson.html) | may be `nan` |
-| EXHB | Exhaustive Ballot | [rule_exhaustive_ballot](https://francois-durand.github.io/svvamp/reference/rules/rule_exhaustive_ballot.html) | Tested & validated |
-| HARE | IRV / Hare | [rule_irv](https://francois-durand.github.io/svvamp/reference/rules/rule_irv.html) | Tested & validated |
-| ICRV | ICRV | [rule_icrv](https://francois-durand.github.io/svvamp/reference/rules/rule_icrv.html) | ⚠️ No dedicated test |
-| IRV | IRV (alias de `HARE`) |  see HARE |
-| IRVA | IRV Average | [rule_irv_average](https://francois-durand.github.io/svvamp/reference/rules/rule_irv_average.html) | ⚠️ No dedicated test |
-| IRVD | IRV Duels | [rule_irv_duels](https://francois-durand.github.io/svvamp/reference/rules/rule_irv_duels.html) | ⚠️ No dedicated test |
-| KEME | Kemeny | [rule_kemeny](https://francois-durand.github.io/svvamp/reference/rules/rule_kemeny.html) | ⚠️ No dedicated test — high computational time |
-| KIMR | Kim-Roush | [rule_kim_roush](https://francois-durand.github.io/svvamp/reference/rules/rule_kim_roush.html) | Tested & validated |
-| L4VD | L4VD | — | ❌ Not implemented |
-| MJ | Majority Judgment | [rule_majority_judgment](https://francois-durand.github.io/svvamp/reference/rules/rule_majority_judgment.html) | Tested & validated |
-| MMAX | Maximin | [rule_maximin](https://francois-durand.github.io/svvamp/reference/rules/rule_maximin.html) | Tested & validated |
-| NANS | Nanson | [rule_nanson](https://francois-durand.github.io/svvamp/reference/rules/rule_nanson.html) | Tested & validated |
-| PLU1 | Plurality | [rule_plurality](https://francois-durand.github.io/svvamp/reference/rules/rule_plurality.html) | Tested & validated |
-| PLU2 | Two-Round | [rule_two_round](https://francois-durand.github.io/svvamp/reference/rules/rule_two_round.html) | Tested & validated |
-| RPAR | Ranked Pairs | [rule_ranked_pairs](https://francois-durand.github.io/svvamp/reference/rules/rule_ranked_pairs.html) | Tested & validated |
-| RV | Range Voting | [rule_range_voting](https://francois-durand.github.io/svvamp/reference/rules/rule_range_voting.html) | Tested & validated |
-| SCHU | Schulze | [rule_schulze](https://francois-durand.github.io/svvamp/reference/rules/rule_schulze.html) | Tested & validated  |
-| SIRV | Smith IRV | [rule_smith_irv](https://francois-durand.github.io/svvamp/reference/rules/rule_smith_irv.html) | Tested & validated |
-| SLAT | Slater | [rule_slater](https://francois-durand.github.io/svvamp/reference/rules/rule_slater.html) | ⚠️ No dedicated test -- computational time too long |
-| SPCY | Split Cycle | [rule_split_cycle](https://francois-durand.github.io/svvamp/reference/rules/rule_split_cycle.html) | Tested & validated |
-| STAR | STAR | [rule_star](https://francois-durand.github.io/svvamp/reference/rules/rule_star.html) | Tested & validated |
-| TIDE | Tideman | [rule_tideman](https://francois-durand.github.io/svvamp/reference/rules/rule_tideman.html) | Tested & validated |
-| VETO | Veto (Anti-plurality) | [rule_veto](https://francois-durand.github.io/svvamp/reference/rules/rule_veto.html) | Tested & validated |
-| WOOD | Woodall | [rule_woodall](https://francois-durand.github.io/svvamp/reference/rules/rule_woodall.html) | Tested & validated |
-| YOUN | Young | [rule_young](https://francois-durand.github.io/svvamp/reference/rules/rule_young.html) | Tested & validated |
+### Main rules
+
+| Code | Rule name | Brief description |
+|---|---|---|
+| PLU1 | [Plurality](https://francois-durand.github.io/svvamp/reference/rules/rule_plurality.html) | Candidate with the most first-place votes wins |
+| PLU2 | [Two-Round Plurality (Runoff)](https://francois-durand.github.io/svvamp/reference/rules/rule_two_round.html) | Top two candidates compete in a second-round runoff |
+| HARE | [Hare / Instant-Runoff Voting](https://francois-durand.github.io/svvamp/reference/rules/rule_irv.html) | Eliminate lowest candidates iteratively using ranked ballots |
+| BUCK_R | [Bucklin Voting](https://francois-durand.github.io/svvamp/reference/rules/rule_bucklin.html) | Selects candidate reaching majority at lowest rank level |
+| BUCK_I | [Iterated Bucklin](https://francois-durand.github.io/svvamp/reference/rules/rule_iterated_bucklin.html) | Repeated Bucklin elimination process |
+| COPE | [Copeland's Method](https://francois-durand.github.io/svvamp/reference/rules/rule_copeland.html) | Score based on pairwise wins minus pairwise losses |
+| SCHU | [Schulze Method](https://francois-durand.github.io/svvamp/reference/rules/rule_schulze.html) | Strongest path method on pairwise comparisons |
+| MMIN | [Maximin (Minimax)](https://francois-durand.github.io/svvamp/reference/rules/rule_maximin.html) | Candidate with the strongest worst pairwise defeat wins |
+| BLAC | [Black's Method](https://francois-durand.github.io/svvamp/reference/rules/rule_black.html) | Condorcet winner if one exists, otherwise Borda winner |
+| KIMR | [Kim-Roush](https://francois-durand.github.io/svvamp/reference/rules/rule_kim_roush.html) | Each round, candidates with veto score strictly below average are simultaneously eliminated |
+| WOOD | [Woodall's Method](https://francois-durand.github.io/svvamp/reference/rules/rule_woodall.html) | Perform IRV on the Smith set |
+| YOUN | [Young's Method](https://francois-durand.github.io/svvamp/reference/rules/rule_young.html) | Elect the candidate who can become a Condorcet winner by removing the fewest voters |
+| TIDE | [Tideman's Ranked Pairs](https://francois-durand.github.io/svvamp/reference/rules/rule_tideman.html) | Lock pairwise victories from strongest to weakest, avoiding cycles |
+| BORD | [Borda Count](https://francois-durand.github.io/svvamp/reference/rules/rule_borda.html) | Score candidates by ranked positions |
+| COOM | [Coombs' Method](https://francois-durand.github.io/svvamp/reference/rules/rule_coombs.html) | IRV variant eliminating the most disliked candidate each round |
+| NANS | [Nanson's Method](https://francois-durand.github.io/svvamp/reference/rules/rule_nanson.html) | Iterative elimination of candidates below the Borda average |
+| BALD | [Baldwin's Method](https://francois-durand.github.io/svvamp/reference/rules/rule_baldwin.html) | Iterative elimination of the lowest Borda score |
+| MJ | [Majority Judgment](https://francois-durand.github.io/svvamp/reference/rules/rule_majority_judgment.html) | Elect the candidate with the highest median grade |
+| RV | [Range Voting](https://francois-durand.github.io/svvamp/reference/rules/rule_range_voting.html) | Candidate with the highest average score wins |
+| STAR | [STAR Voting](https://francois-durand.github.io/svvamp/reference/rules/rule_star.html) | Score then automatic runoff between the top two scored candidates |
+| VETO | [Veto (Anti-Plurality)](https://francois-durand.github.io/svvamp/reference/rules/rule_veto.html) | Candidate with the fewest last-place votes wins |
+| AP_T0GE | [Approval Voting (utility ≥ 0)](https://francois-durand.github.io/svvamp/reference/rules/rule_approval.html) | Approve all candidates with non-negative utility |
+| AP_T05 … AP_T09 | [Approval Voting (threshold)](https://francois-durand.github.io/svvamp/reference/rules/rule_approval.html) | Approve candidates above the given utility threshold (0.05, 0.06 … 0.9) |
+| AP_K2 … AP_K12 | [K-Approval](https://francois-durand.github.io/svvamp/reference/rules/rule_k_approval.html) | Approve a fixed number of top candidates (K = 2 … 12) |
+| AP_KRP | K-Approval (K = random Poisson) | K drawn randomly from a Poisson distribution with λ = c/3 |
+| L1DV … L6DV | Lp Distance Voting (p = 1 … 6) | Weighted Lp-norm distance-based voting rules |
+| DEPF | Depth Function (default) | Winner selection based on statistical data depth |
+| DEPF_EXACT | Depth Function (exact) | Exact computation of the depth function winner |
+| DEPF_GREEDY | Depth Function (greedy) | Greedy approximation of the depth function winner |
+| DODG_C | [Dodgson's Method](https://francois-durand.github.io/svvamp/reference/rules/rule_dodgson.html) | Minimum swaps needed for a candidate to become a Condorcet winner |
+| DODG_S | [Dodgson's Method (score variant)](https://francois-durand.github.io/svvamp/reference/rules/rule_dodgson.html) | Same, using the svvamp score-based implementation |
+| COND | Condorcet | Weak Condorcet winner(s) elected; all tied otherwise |
+| RANDOM_DICTATOR | Random Dictator | A random voter is picked and their top candidate is elected |
+| RANDOM_WINNER | Random Winner | A random candidate is picked uniformly |
+
+### Additional registered rules
+
+These rules are also available in the registry but less commonly used.
+
+| Code | Rule name |
+|---|---|
+| KEME | [Kemeny-Young](https://francois-durand.github.io/svvamp/reference/rules/rule_kemeny.html) — ⚠️ high computational cost |
+| KEME_LAZY | Kemeny-Young (lazy approximation) |
+| SLAT | [Slater's Method](https://francois-durand.github.io/svvamp/reference/rules/rule_slater.html) — ⚠️ high computational cost |
+| SPCY | [Split Cycle](https://francois-durand.github.io/svvamp/reference/rules/rule_split_cycle.html) |
+| RPAR | [Ranked Pairs](https://francois-durand.github.io/svvamp/reference/rules/rule_ranked_pairs.html) |
+| SIRV | [Smith-IRV](https://francois-durand.github.io/svvamp/reference/rules/rule_smith_irv.html) |
+| EXHB | [Exhaustive Ballot](https://francois-durand.github.io/svvamp/reference/rules/rule_exhaustive_ballot.html) |
+| ICRV | [ICRV](https://francois-durand.github.io/svvamp/reference/rules/rule_icrv.html) |
+| IRVA | [IRV Average](https://francois-durand.github.io/svvamp/reference/rules/rule_irv_average.html) |
+| IRVD | [IRV Duels](https://francois-durand.github.io/svvamp/reference/rules/rule_irv_duels.html) |
+| CAIR | [Condorcet-Abs-IRV](https://francois-durand.github.io/svvamp/reference/rules/rule_condorcet_abs_irv.html) |
+| CVIR | [Condorcet-Vtb-IRV](https://francois-durand.github.io/svvamp/reference/rules/rule_condorcet_vtb_irv.html) |
+| CSUM | [Condorcet Sum Defeats](https://francois-durand.github.io/svvamp/reference/rules/rule_condorcet_sum_defeats.html) |
+| APLU | Approval (all candidates approved) |
+| AP_T | Approval Voting (threshold = 0.7, alias) |
+| AP_K | K-Approval (K = 2, alias) |
+| AP_T05GE | Approval Voting (utility ≥ 0.5) |
+| AP_K_POISSON | K-Approval (K = random Poisson, alias for AP_KRP) |
 
 ## How to add a rule
 
-Use the public registry helpers to add custom rules :
+Use the public registry helpers to register custom rules:
 
 ```python
 from svvamp import RuleApproval
 
-from vote_simulation.models.rules import get_rule_builder, make_rule_builder, register_rule
+from vote_simulation.models.rules.registry import get_rule_builder, make_rule_builder, register_rule
 
 
 register_rule(
@@ -70,7 +91,5 @@ ballots = [
 result = get_rule_builder("AP_T8")(ballots)
 print(result.cowinners_)
 ```
-
-See `demo/adding_rule.py` for a already built example.
 
 ::: vote_simulation.models.rules.registry

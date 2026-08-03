@@ -20,23 +20,25 @@ The full workflow is:
 │   └── <MODEL>_v<NV>_c<NC>/
 │       ├── iter_0001.parquet
 │       └── ...
-└── sim_result/
-	└── <MODEL>_v<NV>_c<NC>/
-		├── iter_0001.parquet
-		└── ...
+├── sim_result/
+│   └── <MODEL>_v<NV>_c<NC>/
+│       ├── iter_0001.parquet
+│       └── ...
+└── results/
+    └── <MODEL>_v<NV>_c<NC>.parquet   ← series cache
 ```
 
-Legacy single-file and batch modes write their outputs under `sim/`.
-
 ## Main public entry points
-- `obtain_data_instance()` retrieve (from storage or generation)
-- `run_rules_on_instance()` apply SRC on DataInstance
-- `
 
-- `generate_data()` for generation only
-- `simulation_full()` for the full pipeline
-- `simulation()` for one file
-- `obtain_data_instance()` for the cache-or-generate step
+| Function | Returns | Description |
+|---|---|---|
+| `simulation_from_config(config_path)` | `None` | Full pipeline: generate → apply rules → save per-iteration Parquet files under `sim_result/` |
+| `simulation_series_from_config(config_path)` | `SimulationTotalResult` | Same as above but returns results in memory; caches series under `results/` |
+| `simulation_instance(gen_code, n_v, n_c, rule_codes, ...)` | `SimulationSeriesResult` | Run one `(model, voters, candidates)` combination; supports incremental rule addition from cache |
+| `generate_data(config_path)` | `list[str]` | Generate (or reuse cached) profiles only, no rules applied |
+| `obtain_data_instance(model, n_v, n_c, ...)` | `DataInstance` | Load a single cached profile or generate and persist it |
+| `run_rules_on_instance(data_instance, rule_codes)` | `SimulationStepResult` | Apply a list of rules to a single `DataInstance` |
+| `simulation_step(profile, rule_codes)` | `SimulationStepResult` | Apply a list of rules to an svvamp `Profile` directly |
 
 ## Configuration reference
 
