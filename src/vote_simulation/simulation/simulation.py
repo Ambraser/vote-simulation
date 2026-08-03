@@ -26,7 +26,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 from svvamp import Profile
 from tqdm import tqdm
 
