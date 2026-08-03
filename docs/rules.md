@@ -23,9 +23,9 @@ All rules expose a `cowinners_` attribute. They are integrated via the `rule_cod
 | DODG_S | Dodgson (S) | [rule_dodgson](https://francois-durand.github.io/svvamp/reference/rules/rule_dodgson.html) | may be `nan` |
 | EXHB | Exhaustive Ballot | [rule_exhaustive_ballot](https://francois-durand.github.io/svvamp/reference/rules/rule_exhaustive_ballot.html) | Tested & validated |
 | HARE | IRV / Hare | [rule_irv](https://francois-durand.github.io/svvamp/reference/rules/rule_irv.html) | Tested & validated |
-| ICRV | ICRV | [rule_icrv](https://francois-durand.github.io/svvamp/reference/rules/rule_icrv.html) | ⚠️ No dedicated test |
+| ICRV | ICRV | [rule_icrv](https://francois-durand.github.io/svvamp/reference/rules/rule_icrv.html) | |
 | IRV | IRV (alias de `HARE`) |  see HARE |
-| IRVA | IRV Average | [rule_irv_average](https://francois-durand.github.io/svvamp/reference/rules/rule_irv_average.html) | ⚠️ No dedicated test |
+| IRVA | IRV Average | [rule_irv_average](https://francois-durand.github.io/svvamp/reference/rules/rule_irv_average.html) |  |
 | IRVD | IRV Duels | [rule_irv_duels](https://francois-durand.github.io/svvamp/reference/rules/rule_irv_duels.html) | ⚠️ No dedicated test |
 | KEME | Kemeny | [rule_kemeny](https://francois-durand.github.io/svvamp/reference/rules/rule_kemeny.html) | ⚠️ No dedicated test — high computational time |
 | KIMR | Kim-Roush | [rule_kim_roush](https://francois-durand.github.io/svvamp/reference/rules/rule_kim_roush.html) | Tested & validated |
