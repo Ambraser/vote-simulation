@@ -4,14 +4,14 @@ output_base_path = "../data/"
 
 # Data generation models
 # Available: UNI, IC, IANC, EUCLID, GAUSS, LADDER, SPHEROID, PERTURB, UNANIMOUS, UFR, VMF_HC, VMF_HS
-generative_models = ["UNI", "DDD_BETA","DDD_BETA_POLAR"]
+generative_models = ["UNI","DDD_BETA_POLAR"]
 
 
 # Voting methods to execute
 rule_codes = ["RV", "MJ", "AP_T", "BORD", "STAR" ,"BLAC","SCHU","COPE", "MMAX", "NANS", "COOM", "PLU2", "PLU1"]
 
 
-candidates = [3,5,9,14]
+candidates = [3,5,9]
 
 # Numbers of voters
 voters = [10,20,100,1000]
