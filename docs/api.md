@@ -1,11 +1,12 @@
 # API Reference
 
-## Simulation package
+## Simulation
 
-::: vote_simulation.simulation
+::: vote_simulation.simulation.simulation
 
-## Simulation result models
+## Configuration
 
+::: vote_simulation.simulation.configuration
 
 ## Rule registry
 
@@ -15,7 +16,17 @@
 
 ::: vote_simulation.models.data_generation.generator_registry
 
-## Data instances
+## Data instance
 
 ::: vote_simulation.models.data_generation.data_instance
+
+## Results
+
+::: vote_simulation.models.results.step_result
+
+::: vote_simulation.models.results.series_result
+
+::: vote_simulation.models.results.total_result
+
+::: vote_simulation.models.results.result_config
 

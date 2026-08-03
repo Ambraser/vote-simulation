@@ -1,9 +1,8 @@
-A simulation result work with the following logic : 
+A simulation result works with the following logic:
 
-- each iteration (step) is a step_result instance. 
-- series result aggregates all the before and 
+- each iteration (step) is a `SimulationStepResult` instance.
+- a `SimulationSeriesResult` aggregates all steps for one `(model, voters, candidates)` combination.
 
-:::vote_simulation.models.results.step_result
+::: vote_simulation.models.results.step_result
 
-
-:::vote_simulation.models.results.series_result
+::: vote_simulation.models.results.series_result

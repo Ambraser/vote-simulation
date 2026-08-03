@@ -41,35 +41,47 @@ uv sync
 The typical workflow is:
 
 1. prepare a TOML config file,
-2. generate or load election profiles,
-3. run one or more voting rules,
-4. inspect the produced Parquet files.
+2. run the simulation (data generation is handled automatically),
+3. inspect the produced Parquet files.
 
 The default example config lives in `config/simulation.toml`.
 
-### TOML config file 
+### TOML config file
 
 ```toml
 [simulation]
-output_base_path = "data/"
+output_base_path = "data"
 generative_models = ["VMF_HC"]
 rule_codes = ["PLU1", "BORD", "SCHU"]
 candidates = [3, 14]
 voters = [11, 101]
 iterations = 10
-seed = 161
+seed = 42
 ```
 
-You can copy paste this content into a toml file at the root of your project. 
+Copy this into a `simulation.toml` file and adjust as needed.
 
-### Data generation 
-This part is optionnal, because it is automatically handle, but it can be called on it's own. 
+### Run the pipeline
 
+```python
+from vote_simulation.simulation.simulation import simulation_from_config
 
+simulation_from_config("config/simulation.toml")
+```
 
+### Data generation only
 
+Data generation is handled automatically inside `simulation_from_config`, but you can also call it on its own:
 
-The full pipeline writes files with this structure:
+```python
+from vote_simulation.simulation.simulation import generate_data
+
+paths = generate_data("config/simulation.toml")
+```
+
+### Output structure
+
+The pipeline writes files with this structure:
 
 ```text
 data/
@@ -77,19 +89,10 @@ data/
 │   └── <MODEL>_v<VOTERS>_c<CANDIDATES>/
 │       ├── iter_0001.parquet
 │       └── ...
-└── sim_result/
-	└── <MODEL>_v<VOTERS>_c<CANDIDATES>/
-		├── iter_0001.parquet
-		└── ...
+├── sim_result/
+│   └── <MODEL>_v<VOTERS>_c<CANDIDATES>/
+│       ├── iter_0001.parquet
+│       └── ...
+└── results/
+    └── <MODEL>_v<VOTERS>_c<CANDIDATES>.parquet   ← series cache
 ```
-
-
-
-### Simulation 
-
-To run you're first simulation : 
-
-```python
-simulation_from_config(config_file.toml)
-```
-

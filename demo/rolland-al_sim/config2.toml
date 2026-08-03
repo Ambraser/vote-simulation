@@ -8,7 +8,7 @@ generative_models = ["UNI","DDD_BETA_POLAR"]
 
 
 # Voting methods to execute
-rule_codes = ["RV", "MJ", "AP_T", "BORD", "STAR" ,"BLAC","SCHU","COPE", "MMAX", "NANS", "COOM", "PLU2", "PLU1"]
+rule_codes = ["RV", "MJ", "AP_T", "BORD", "STAR" ,"BLAC","SCHU","COPE", "NANS", "COOM", "PLU2", "PLU1"]
 
 
 candidates = [3,5,9]

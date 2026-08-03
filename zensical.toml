@@ -20,6 +20,7 @@ nav = [
 
   { "Usage" = "usage.md" },
   { "Simulation workflow" = "simulation.md" },
+  { "Graphical interface" = "ui.md" },
 ]
 
 [[project.theme.palette]]
