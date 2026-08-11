@@ -1,6 +1,6 @@
 # vote_simulation
 
-![PyPI version](https://img.shields.io/pypi/v/vote_simulation.svg)
+![PyPI version](https://img.shields.io/pypi/v/vote-simulation.svg)
 
 A framework to compare social choice rules
 
