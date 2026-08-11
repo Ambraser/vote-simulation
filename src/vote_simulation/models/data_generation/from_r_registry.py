@@ -57,8 +57,8 @@ def _get_r_env() -> Any:
             return _r_env
 
         try:
-            import rpy2.robjects as ro  # ty: ignore[unresolved-import]
-            from rpy2.robjects.packages import importr  # ty: ignore[unresolved-import]
+            import rpy2.robjects as ro
+            from rpy2.robjects.packages import importr
         except ImportError as exc:
             raise ImportError("rpy2 is required for R-based generators. Install it with: uv add rpy2") from exc
 

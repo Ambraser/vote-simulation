@@ -23,8 +23,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-
 # ── cleaning ──────────────────────────────────────────────────────────────────
+
 
 def clean_incomplete_data(df: pd.DataFrame) -> pd.DataFrame:
     return df.dropna(axis=0, how="any")
@@ -32,23 +32,27 @@ def clean_incomplete_data(df: pd.DataFrame) -> pd.DataFrame:
 
 # ── summary table ─────────────────────────────────────────────────────────────
 
+
 def summary_table(df: pd.DataFrame) -> pd.DataFrame:
     """Per-candidate table: mean, median, std, min/max."""
     rows = []
     for col in df.columns:
         s = df[col]
-        rows.append({
-            "candidate": col,
-            "mean":      round(float(s.mean()), 4),
-            "median":    round(float(s.median()), 4),
-            "std":       round(float(s.std()), 4),
-            "min":       float(s.min()),
-            "max":       float(s.max()),
-        })
+        rows.append(
+            {
+                "candidate": col,
+                "mean": round(float(s.mean()), 4),
+                "median": round(float(s.median()), 4),
+                "std": round(float(s.std()), 4),
+                "min": float(s.min()),
+                "max": float(s.max()),
+            }
+        )
     return pd.DataFrame(rows).set_index("candidate")
 
 
 # ── plotting ──────────────────────────────────────────────────────────────────
+
 
 def plot_distributions(
     df: pd.DataFrame,
@@ -65,7 +69,7 @@ def plot_distributions(
 
     # A4 landscape ≈ 11.7 × 8.3 in; keep subplots compact
     fig_w = min(11.7, 3.8 * n_cols)
-    fig_h = min(8.3,  2.8 * n_rows + 0.6)
+    fig_h = min(8.3, 2.8 * n_rows + 0.6)
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(fig_w, fig_h), squeeze=False)
 
     title = f"{election_name} — rating distribution" if election_name else "Rating distribution"
@@ -79,12 +83,11 @@ def plot_distributions(
         ax = axes[r][c]
         s = df[col].dropna()
 
-        ax.hist(s, bins=bins, range=(rating_min, rating_max),
-                color="#4C72B0", edgecolor="white", alpha=0.75, density=True)
-        ax.axvline(s.mean(),   color="#e07b00", linewidth=1.4, linestyle="--",
-                   label=f"mean={s.mean():.3f}")
-        ax.axvline(s.median(), color="#009900", linewidth=1.4, linestyle=":",
-                   label=f"median={s.median():.3f}")
+        ax.hist(
+            s, bins=bins, range=(rating_min, rating_max), color="#4C72B0", edgecolor="white", alpha=0.75, density=True
+        )
+        ax.axvline(s.mean(), color="#e07b00", linewidth=1.4, linestyle="--", label=f"mean={s.mean():.3f}")
+        ax.axvline(s.median(), color="#009900", linewidth=1.4, linestyle=":", label=f"median={s.median():.3f}")
 
         ax.set_title(col, fontsize=9, fontweight="bold", pad=3)
         ax.set_xlabel("Rating", fontsize=7)
@@ -112,6 +115,7 @@ def plot_distributions(
 
 # ── folder crawler ────────────────────────────────────────────────────────────
 
+
 def process_folder(
     folder: Path,
     *,
@@ -131,6 +135,7 @@ def process_folder(
 
 # ── single-file helper ────────────────────────────────────────────────────────
 
+
 def _process_file(
     csv_path: Path,
     *,
@@ -142,10 +147,9 @@ def _process_file(
     df_clean = clean_incomplete_data(df_raw)
 
     n_dropped = len(df_raw) - len(df_clean)
-    #divised by 10 if a value of the dataframe is stricly above 1 
+    # divised by 10 if a value of the dataframe is stricly above 1
     if (df_clean > 1).any().any():
         df_clean = df_clean / 10
-
 
     print(f"[{csv_path.name}]  {len(df_raw)} voters → {len(df_clean)} clean  ({n_dropped} dropped)")
 
@@ -157,16 +161,14 @@ def _process_file(
     pd.set_option("display.float_format", "{:.4f}".format)
     print(table.to_string(), "\n")
 
-    plot_distributions(df_clean, bins=bins, show=show,
-                       save_dir=save_dir, election_name=csv_path.stem)
+    plot_distributions(df_clean, bins=bins, show=show, save_dir=save_dir, election_name=csv_path.stem)
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
+
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(
-        description="Rating distribution summary for election CSV files or folders."
-    )
+    parser = argparse.ArgumentParser(description="Rating distribution summary for election CSV files or folders.")
     parser.add_argument("input", help="CSV file or folder of CSV files.")
     parser.add_argument("--bins", type=int, default=10, help="Histogram bins (default: 10).")
     parser.add_argument("--no-show", action="store_true", help="Skip interactive display.")
