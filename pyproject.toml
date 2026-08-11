@@ -61,10 +61,10 @@ docs = [
 ]
 
 [project.urls]
-bugs = "https://github.com/Damidas0/vote_simulation/issues"
-changelog = "https://github.com/Damidas0/vote_simulation/blob/main/HISTORY.md"
-documentation = "https://Damidas0.github.io/vote_simulation/"
-homepage = "https://github.com/Damidas0/vote_simulation"
+bugs = "https://github.com/Ambraser/vote_simulation/issues"
+changelog = "https://github.com/Ambraser/vote_simulation/blob/main/HISTORY.md"
+documentation = "https://Ambraser.github.io/vote_simulation/"
+homepage = "https://github.com/Ambraser/vote_simulation"
 
 [project.scripts]
 vote_simulation = "vote_simulation.cli:app"

@@ -1,8 +1,8 @@
 [project]
 site_name = "vote_simulation"
-site_url = "https://Damidas0.github.io/vote_simulation/"
-repo_url = "https://github.com/Damidas0/vote-simulation"
-repo_name = "Damidas0/vote_simulation"
+site_url = "https://Ambraser.github.io/vote_simulation/"
+repo_url = "https://github.com/Ambraser/vote-simulation"
+repo_name = "Ambraser/vote_simulation"
 
 nav = [
   { "Home" = "index.md" },
@@ -14,7 +14,7 @@ nav = [
     { "Data instance" = "models/data_instance.md" },
     { "Simulation results" = "models/simulation_results"},
     { "Total results" = "models/total_result.md"},
-    { "Distance" = "models/distance"}
+    { "Distance" = "models/distance"} 
   ] },
 
 
