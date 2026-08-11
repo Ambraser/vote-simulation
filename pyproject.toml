@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "vote_simulation"
-version = "0.1.0"
+version = "1.2.0"
 description = "A framework to compare social choice rules"
 readme = "README.md"
 authors = [
