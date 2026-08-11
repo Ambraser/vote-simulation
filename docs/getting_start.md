@@ -15,18 +15,12 @@ pip install vote_simulation
 
 ## From source
 
-The source files for vote_simulation can be downloaded from the [Github repo](https://github.com/Damidas0/vote-simulation).
+The source files for vote_simulation can be downloaded from the [Github repo](https://github.com/Ambraser/vote-simulation).
 
-You can either clone the public repository:
-
-```sh
-git clone https://github.com/Damidas0/vote-simulation
-```
-
-Or download the [tarball](https://github.com/Damidas0/vote_simulation/tarball/main):
+You can also clone the public repository:
 
 ```sh
-curl -OJL https://github.com/Damidas0/vote_simulation/tarball/main
+git clone https://github.com/Ambraser/vote-simulation
 ```
 
 Once you have a copy of the source, you can install it with:
@@ -36,13 +30,15 @@ cd vote_simulation
 uv sync
 ```
 
+
+
 ## Recommended workflow
 
 The typical workflow is:
 
 1. prepare a TOML config file,
 2. run the simulation (data generation is handled automatically),
-3. inspect the produced Parquet files.
+3. inspect the results.
 
 The default example config lives in `config/simulation.toml`.
 
@@ -68,17 +64,6 @@ from vote_simulation.simulation.simulation import simulation_from_config
 
 simulation_from_config("config/simulation.toml")
 ```
-
-### Data generation only
-
-Data generation is handled automatically inside `simulation_from_config`, but you can also call it on its own:
-
-```python
-from vote_simulation.simulation.simulation import generate_data
-
-paths = generate_data("config/simulation.toml")
-```
-
 ### Output structure
 
 The pipeline writes files with this structure:

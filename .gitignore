@@ -13,16 +13,14 @@ demo/results/
 all_sim/
 
 # Demo
-irl_election/
-demo/rolland-al_sim/
-simu-15-juin/
-rolland-al_sim/
+# irl_election/
 demo/simu-15-juin/
 demo/rolland-al_sim/
 demo/simulation/
 demo/results/
 
 demo-ddd_beta_variants.py
+demo-*
 
 # Distribution / packaging
 build/
@@ -63,6 +61,9 @@ coverage.xml
 dmypy.json
 .pyre/
 .pytype/
+
+#Streamlit 
+.streamlit/
 
 # Documentation build output
 site/
