@@ -71,3 +71,4 @@ site/
 # IDE files
 # .idea/
 # .vscode/
+.Rproj.user

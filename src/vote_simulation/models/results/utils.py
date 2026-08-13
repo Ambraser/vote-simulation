@@ -78,6 +78,8 @@ def _plot_heatmap(
             _fig.savefig(save_path, dpi=150, bbox_inches="tight")
     if show:
         plt.show()
+    else:
+        plt.close(ax.figure)
 
     return ax
 

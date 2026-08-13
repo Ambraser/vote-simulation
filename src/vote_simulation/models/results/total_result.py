@@ -683,6 +683,8 @@ class SimulationTotalResult:
             _save_figure(ax.figure, save_path)
         if show:
             plt.show()
+        else:
+            plt.close(ax.figure)
 
         return ax
 
@@ -775,6 +777,8 @@ class SimulationTotalResult:
             _save_figure(ax.figure, save_path)
         if show:
             plt.show()
+        else:
+            plt.close(ax.figure)
 
         return ax
 
@@ -898,6 +902,8 @@ class SimulationTotalResult:
             fig.savefig(save_path)
         if show:
             plt.show()
+        else:
+            plt.close(fig)
         return ax
 
     def plot_winner_metric_heatmap(
@@ -1014,6 +1020,8 @@ class SimulationTotalResult:
             _save_figure(ax.figure, save_path)
         if show:
             plt.show()
+        else:
+            plt.close(ax.figure)
         return ax
 
     def plot_winner_metrics_grid(
@@ -1109,6 +1117,8 @@ class SimulationTotalResult:
             fig.savefig(save_path)
         if show:
             plt.show()
+        else:
+            plt.close(fig)
         return axes
 
     def map_rules_2d(self) -> MdsProjection:
@@ -1290,6 +1300,8 @@ class SimulationTotalResult:
             fig.savefig(save_path)
         if show:
             plt.show()
+        else:
+            plt.close(fig)
 
         return axes
 
