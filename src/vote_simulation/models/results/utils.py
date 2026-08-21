@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, cast
 
 import numpy as np
 
@@ -79,7 +79,7 @@ def _plot_heatmap(
     if show:
         plt.show()
     else:
-        plt.close(ax.figure)
+        plt.close(cast(Any, ax.figure))
 
     return ax
 

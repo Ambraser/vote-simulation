@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, cast
 
 import numpy as np
 import pandas as pd
@@ -700,7 +700,7 @@ class SimulationTotalResult:
         if show:
             plt.show()
         else:
-            plt.close(ax.figure)
+            plt.close(cast(Any, ax.figure))
 
         return ax
 
@@ -794,7 +794,7 @@ class SimulationTotalResult:
         if show:
             plt.show()
         else:
-            plt.close(ax.figure)
+            plt.close(cast(Any, ax.figure))
 
         return ax
 
@@ -1037,7 +1037,7 @@ class SimulationTotalResult:
         if show:
             plt.show()
         else:
-            plt.close(ax.figure)
+            plt.close(cast(Any, ax.figure))
         return ax
 
     def plot_winner_metrics_grid(

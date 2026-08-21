@@ -18,11 +18,11 @@ type-check-watch:
 
 # Run all the formatting, linting, and testing commands
 qa:
-    uv run --python=3.13 ruff format .
-    uv run --python=3.13 ruff check . --fix
-    uv run --python=3.13 ruff check --select I --fix .
-    uv run --python=3.13 ty check --output-format=concise .
-    uv run --python=3.13 pytest .
+    uv run --python=3.13 ruff format src tests
+    uv run --python=3.13 ruff check src tests --fix
+    uv run --python=3.13 ruff check --select I src tests --fix
+    uv run --python=3.13 ty check --output-format=concise src tests
+    uv run --python=3.13 pytest tests
 
 # Run the Streamlit UI locally
 ui *ARGS:
