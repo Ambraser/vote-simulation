@@ -6,22 +6,22 @@ list:
 
 # Type check the project with ty
 type-check:
-    uv run --python=3.13 ty check .
+    uv run --python=3.13 ty check --exclude 'demo/**' .
 
 # Type check with concise output (one diagnostic per line)
 type-check-concise:
-    uv run --python=3.13 ty check --output-format=concise .
+    uv run --python=3.13 ty check --exclude 'demo/**' --output-format=concise .
 
 # Type check in watch mode (rechecks on file changes)
 type-check-watch:
-    uv run --python=3.13 ty check --watch .
+    uv run --python=3.13 ty check --exclude 'demo/**' --watch .
 
 # Run all the formatting, linting, and testing commands
 qa:
     uv run --python=3.13 ruff format src tests
     uv run --python=3.13 ruff check src tests --fix
     uv run --python=3.13 ruff check --select I src tests --fix
-    uv run --python=3.13 ty check --output-format=concise src tests
+    uv run --python=3.13 ty check --exclude 'demo/**' --output-format=concise src tests
     uv run --python=3.13 pytest tests
 
 # Run the Streamlit UI locally

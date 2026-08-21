@@ -164,6 +164,11 @@ class SimulationTotalResult:
                     ordered_codes.append(code)
         return ordered_codes
 
+    @property
+    def rules(self) -> list[str]:
+        """Backward-compatible alias for the distinct rule codes in the result."""
+        return self.rule_codes
+
     def get_series(self, gen_model: str, n_voters: int, n_candidates: int) -> SimulationSeriesResult:
         """Retrieve a single series by its parameter triple.
 
