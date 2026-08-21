@@ -151,6 +151,10 @@ class TestAccessors:
         total = _make_total_4()
         assert total.candidate_counts == [3, 5]
 
+    def test_rule_codes(self) -> None:
+        total = _make_total_4()
+        assert total.rule_codes == ["PLU1", "BORD", "RV"]
+
     def test_get_series(self) -> None:
         total = _make_total_4()
         s = total.get_series("UNI", 100, 3)

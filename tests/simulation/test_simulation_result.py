@@ -92,6 +92,7 @@ def test_series_step_count_and_mean_diagonal_is_zero() -> None:
         series.add_step(step)
 
     assert series.step_count == 5
+    assert series.rule_codes == ["BORDA", "STV"]
     mean = series.mean_distance_matrix
     assert mean.dtype == np.float32
     assert np.all(np.diag(mean) == 0)

@@ -188,6 +188,11 @@ class SimulationSeriesResult:
         return self._iteration_count
 
     @property
+    def rule_codes(self) -> list[str]:
+        """Ordered rule codes currently available in the aggregated result."""
+        return list(self._rule_order)
+
+    @property
     def mean_distance_matrix(self) -> np.ndarray:
         """Mean pairwise distance matrix over all accumulated steps.
 

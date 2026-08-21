@@ -148,6 +148,22 @@ class SimulationTotalResult:
         """Sorted distinct candidate counts."""
         return sorted({k.n_candidates for k in self._entries})
 
+    @property
+    def rule_codes(self) -> list[str]:
+        """Distinct rule codes available across stored series.
+
+        The order is deterministic and follows the first occurrence when
+        iterating over series in sorted key order.
+        """
+        ordered_codes: list[str] = []
+        seen: set[str] = set()
+        for key in sorted(self._entries):
+            for code in self._entries[key].rule_codes:
+                if code not in seen:
+                    seen.add(code)
+                    ordered_codes.append(code)
+        return ordered_codes
+
     def get_series(self, gen_model: str, n_voters: int, n_candidates: int) -> SimulationSeriesResult:
         """Retrieve a single series by its parameter triple.
 

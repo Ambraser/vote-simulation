@@ -16,6 +16,7 @@ from vote_simulation.models.results.total_result import SimulationTotalResult
 from vote_simulation.models.rules.registry import _ensure_profile
 from vote_simulation.simulation.simulation import run_rules_on_instance
 
+
 def _clean_incomplete_data(profile: pd.DataFrame) -> pd.DataFrame:
     """Remove rows with incomplete data (ie incomplete row caracterized by having at least an empty column)
 
@@ -101,6 +102,7 @@ def _extract_data(
             print(f"  {e['name']:40s}  voters={e['n_voters']:5d}  candidates={e['n_candidates']} ")
     return selected
 
+
 def _clean_data(selected: list[dict], display_summary: bool = False) -> pd.DataFrame:
     comparison_rows = []
 
@@ -147,14 +149,15 @@ def _clean_data(selected: list[dict], display_summary: bool = False) -> pd.DataF
     n_affected = (comparison_df["rows_dropped"] > 0).sum()
     total_dropped = comparison_df["rows_dropped"].sum()
     if display_summary:
-        print(f"\n{n_affected}/{len(comparison_df)} elections had incomplete rows — {total_dropped} rows dropped in total.")
+        print(
+            f"\n{n_affected}/{len(comparison_df)} elections had incomplete rows — {total_dropped} rows dropped in total."
+        )
 
     return comparison_df, selected
 
+
 def load_data_clean(
-    data_folder: str,
-    candidate_forks: list[int] | None = None,
-    display_summary:bool = False
+    data_folder: str, candidate_forks: list[int] | None = None, display_summary: bool = False
 ) -> pd.DataFrame:
     """Load and clean election CSVs from a folder, returning a summary DataFrame."""
     selected = _extract_data(data_folder, candidate_forks, display_summary)
@@ -167,6 +170,7 @@ def run_simulations(
     rule_codes: list[str],
     compute_metrics: bool = True,
     repro_seed: int | None = None,
+    n_iterations: int = 1,
 ) -> SimulationTotalResult:
     """Run simulations on a list of election data entries.
     Args:
@@ -174,12 +178,17 @@ def run_simulations(
         rule_codes: A list of rule codes to apply in the simulations.
         compute_metrics: Whether to compute metrics for each simulation step.
         repro_seed: An optional seed for reproducibility.
+        n_iterations: Number of iterations to run per election.
 
     Returns:
         A SimulationTotalResult object containing the results of all simulations.
     """
+    if n_iterations < 1:
+        raise ValueError("n_iterations must be >= 1")
+
     total_result = SimulationTotalResult()
 
+    base_seed = repro_seed if repro_seed is not None else int(np.random.randint(0, 2**31 - 1))
     if repro_seed is not None:
         np.random.seed(repro_seed)
 
@@ -187,17 +196,10 @@ def run_simulations(
         n_c = entry["n_candidates"]
         n_v = entry["n_voters"]
         name = entry["name"]
-        #print(f"Name : {name}")
+        # print(f"Name : {name}")
         if n_v == 0:
             print(f"  [SKIP] {entry['name']}: no voters found.")
             continue
-
-        step_config = ResultConfig.single(
-            gen_model=name,
-            n_voters=n_v,
-            n_candidates=n_c,
-            rules_codes=rule_codes,
-        )
 
         try:
             di = _load_election_csv(entry["path"])
@@ -205,38 +207,95 @@ def run_simulations(
             print(f"  [SKIP] {entry['name']}: {exc}")
             continue
 
-        step_seed = None
-        rng_state = None
-        if repro_seed is not None:
-            step_seed = deterministic_step_seed(repro_seed, name, n_v, n_c)
-            rng_state = np.random.get_state()
-            np.random.seed(step_seed)
-
-        step = run_rules_on_instance(
-            di,
-            rule_codes,
-            config=step_config,
-            compute_metrics=compute_metrics,
-        )
-
-        if rng_state is not None:
-            np.random.set_state(rng_state)
-
-        # one series per (gen_model, n_voters, n_candidates) — merge if already exists
+        # One series per (gen_model, n_voters, n_candidates).
         try:
-            existing = total_result.get_series("IRL", n_v, n_c)
-            existing.add_step(step)
+            series = total_result.get_series(name, n_v, n_c)
         except KeyError:
             series = SimulationSeriesResult()
-            series.add_step(step)
             series.config = ResultConfig.single(
                 gen_model=name,
                 n_voters=n_v,
                 n_candidates=n_c,
-                n_iterations=1,
+                n_iterations=0,
                 rules_codes=rule_codes,
             )
             total_result.add_series(series)
 
+        for iteration_idx in range(n_iterations):
+            step_config = ResultConfig.single(
+                gen_model=name,
+                n_voters=n_v,
+                n_candidates=n_c,
+                n_iterations=iteration_idx + 1,
+                rules_codes=rule_codes,
+            )
+
+            rng_state = None
+            # True per-iteration advancement from the configured base seed.
+            # This guarantees that iteration 0, 1, 2, ... do not reuse exactly the same RNG state.
+            iter_seed = base_seed + iteration_idx
+            step_seed = deterministic_step_seed(iter_seed, name, n_v, n_c)
+            if repro_seed is not None or n_iterations > 1:
+                rng_state = np.random.get_state()
+                np.random.seed(step_seed)
+
+            try:
+                step = run_rules_on_instance(
+                    di,
+                    rule_codes,
+                    config=step_config,
+                    compute_metrics=compute_metrics,
+                )
+            finally:
+                if rng_state is not None:
+                    np.random.set_state(rng_state)
+
+            series.add_step(step)
+
+        # Keep the series config aligned with the actual number of accumulated steps.
+        series.config = ResultConfig.single(
+            gen_model=name,
+            n_voters=n_v,
+            n_candidates=n_c,
+            n_iterations=series.step_count,
+            rules_codes=rule_codes,
+        )
+
     print(f"\nSimulation complete — {total_result.series_count} series")
     return total_result
+
+
+def analyze_results(
+    total_result: SimulationTotalResult,
+    base_path: Path,
+    excluded_rules: set[str] | None = None,
+    candidate_forks: list[int] | None = None,
+) -> tuple[SimulationTotalResult, pd.DataFrame]:
+
+    excluded = {}  # {"AP_T0GE", "VETO", "COND"}
+    if excluded_rules:
+        excluded.update(excluded_rules)
+    filtered_rules = [r for r in total_result.rules if r not in excluded]
+    total_filtered = total_result.filter_rules(filtered_rules)
+
+    total_filtered.plot_rules_2d(save_path=str(base_path / "rules_2d_no_APT0GE.png"))
+
+    forks = candidate_forks or sorted({k.n_candidates for k in total_result.keys})
+    to_output = {}
+    for c in forks:
+        filter_f = total_filtered.filter(n_candidates=c)
+        for v in filter_f.voter_counts:
+            fcv = filter_f.filter(n_voters=v)
+            name = fcv.gen_models[0]
+            m = fcv.mean_distance_matrix_frame().drop_duplicates()
+            to_output[name] = len(m)
+
+    print(to_output)
+
+    df = pd.DataFrame(list(to_output.items()), columns=pd.Index(["name", "count"]))
+    df.to_csv(base_path / "elected_candidates_count.csv", index=False)
+
+    display(df.describe())
+    display(df.value_counts(subset=["count"]))
+
+    return total_filtered, df
